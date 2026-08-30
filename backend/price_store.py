@@ -3,12 +3,14 @@
 价格存储管道 —— 定时抓取 tarkov.dev 价格，存入本地 SQLite，攒出 7/30 天趋势
 
 设计思路：
-  1. 首次查询某物品趋势时，从 /regular/prices/{itemId} 导入完整历史（立刻有图，不用等慢慢攒）
-  2. 后台线程每隔 FETCH_INTERVAL 秒抓一次 /regular/items 全量价格，把有价格的物品写入快照
+  1. 首次查询某物品趋势时，从 {前缀}/prices/{itemId} 导入完整历史（立刻有图，不用等慢慢攒）
+  2. 后台线程每隔 FETCH_INTERVAL 秒抓一次全量价格，把有价格的物品写入快照
   3. 提供趋势查询：按物品 id + 天数，返回 [{ts(毫秒), price}] 供前端画折线图
 
 数据表：
-  price_history(item_id, ts, price)  —— 价格历史（含导入的历史 + 定时快照）
+  price_history(item_id, ts, price, mode)  —— 价格历史（含导入的历史 + 定时快照）
+  注意：前缀随模式变化（/regular=PvP，/pve=PvE），趋势数据按 mode 列隔离，
+  切换模式后同一物品的 PvP/PvE 历史不会混在一起。
 """
 import os
 import sqlite3
@@ -17,7 +19,7 @@ import time
 from pathlib import Path
 
 import httpx
-
+import config  # 模式可运行时切换，必须动态读取
 from config import TARKOV_API_BASE
 
 # 数据库文件：backend/data/prices.db
@@ -45,7 +47,7 @@ class PriceStore:
         return self._conn
 
     def _init_db(self):
-        """建表（幂等）"""
+        """建表（幂等）；老库自动补 mode 列（存量数据都是 PvP 快照）"""
         conn = self._get_conn()
         with self._lock:
             conn.execute("""
@@ -53,17 +55,24 @@ class PriceStore:
                     item_id TEXT NOT NULL,
                     ts       INTEGER NOT NULL,   -- 时间戳（毫秒）
                     price    REAL NOT NULL,
+                    mode     TEXT NOT NULL DEFAULT 'pvp',  -- pvp / pve
                     PRIMARY KEY (item_id, ts)
                 )
             """)
+            # 老版本库升级：补 mode 列
+            cols = [r[1] for r in conn.execute("PRAGMA table_info(price_history)")]
+            if "mode" not in cols:
+                conn.execute(
+                    "ALTER TABLE price_history ADD COLUMN mode TEXT NOT NULL DEFAULT 'pvp'")
             conn.commit()
 
     def _count(self, item_id: str) -> int:
-        """某物品本地已存的价格条数"""
+        """某物品本地已存的价格条数（当前模式）"""
         conn = self._get_conn()
         with self._lock:
             cur = conn.execute(
-                "SELECT COUNT(*) FROM price_history WHERE item_id=?", (item_id,))
+                "SELECT COUNT(*) FROM price_history WHERE item_id=? AND mode=?",
+                (item_id, config.GAME_MODE))
             return cur.fetchone()[0]
 
     def import_history(self, item_id: str) -> int:
@@ -73,7 +82,7 @@ class PriceStore:
         """
         try:
             resp = httpx.get(
-                f"{TARKOV_API_BASE}/regular/prices/{item_id}", timeout=60)
+                f"{TARKOV_API_BASE}{config.TARKOV_MODE_PREFIX}/prices/{item_id}", timeout=60)
             resp.raise_for_status()
             history = resp.json().get("data", [])
         except Exception:
@@ -82,12 +91,13 @@ class PriceStore:
         if not history:
             return 0
 
+        mode = config.GAME_MODE
         rows = []
         for h in history:
             ts = h.get("timestamp")
             price = h.get("price")
             if ts and price:
-                rows.append((item_id, int(ts), float(price)))
+                rows.append((item_id, int(ts), float(price), mode))
 
         if not rows:
             return 0
@@ -95,7 +105,7 @@ class PriceStore:
         conn = self._get_conn()
         with self._lock:
             conn.executemany(
-                "INSERT OR IGNORE INTO price_history(item_id, ts, price) VALUES(?,?,?)",
+                "INSERT OR IGNORE INTO price_history(item_id, ts, price, mode) VALUES(?,?,?,?)",
                 rows)
             conn.commit()
         return len(rows)
@@ -108,20 +118,21 @@ class PriceStore:
         if not prices:
             return 0
         ts = int(time.time() * 1000)
-        rows = [(iid, ts, float(p)) for iid, p in prices.items() if p]
+        mode = config.GAME_MODE
+        rows = [(iid, ts, float(p), mode) for iid, p in prices.items() if p]
         if not rows:
             return 0
         conn = self._get_conn()
         with self._lock:
             conn.executemany(
-                "INSERT OR IGNORE INTO price_history(item_id, ts, price) VALUES(?,?,?)",
+                "INSERT OR IGNORE INTO price_history(item_id, ts, price, mode) VALUES(?,?,?,?)",
                 rows)
             conn.commit()
         return len(rows)
 
     def get_trend(self, item_id: str, days: int = 7) -> list:
         """
-        查询某物品最近 days 天的价格序列，返回 [{ts, price}]（按时间升序）。
+        查询某物品最近 days 天的价格序列（仅当前模式），返回 [{ts, price}]（按时间升序）。
         数据不足时返回空列表。
         """
         cutoff = int((time.time() - days * 86400) * 1000)
@@ -129,8 +140,8 @@ class PriceStore:
         with self._lock:
             cur = conn.execute(
                 "SELECT ts, price FROM price_history "
-                "WHERE item_id=? AND ts>=? ORDER BY ts ASC",
-                (item_id, cutoff))
+                "WHERE item_id=? AND ts>=? AND mode=? ORDER BY ts ASC",
+                (item_id, cutoff, config.GAME_MODE))
             rows = cur.fetchall()
         return [{"ts": ts, "price": price} for ts, price in rows]
 

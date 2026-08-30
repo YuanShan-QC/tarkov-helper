@@ -4,6 +4,10 @@ setlocal
 rem ============================================================
 rem  塔科夫市场查询助手 - 一键启动脚本
 rem  用法：双击本文件，自动准备环境并启动后端服务
+rem
+rem  改进：启动后轮询后端健康检查（wait-backend.ps1），
+rem        后端真正就绪后才打开浏览器，
+rem        修复开机首次启动时后端加载慢导致页面打不开的问题
 rem ============================================================
 
 rem 切换到脚本所在目录（项目根目录）
@@ -28,11 +32,11 @@ if not defined PYTHON_EXE (
     pause
     exit /b 1
 )
-echo [1/3] Python 环境已就绪
+echo [1/4] Python 环境已就绪
 
 rem ----- 2. 检查并准备后端环境 -----
 if not exist "backend\.venv\Scripts\python.exe" (
-    echo [2/3] 首次运行，正在创建虚拟环境并安装依赖（约需 1 分钟）...
+    echo [2/4] 首次运行，正在创建虚拟环境并安装依赖（约需 1 分钟）...
     "%PYTHON_EXE%" -m venv backend\.venv
     if errorlevel 1 (
         echo [错误] 虚拟环境创建失败
@@ -50,14 +54,14 @@ if not exist "backend\.venv\Scripts\python.exe" (
     )
     echo.
 ) else (
-    echo [2/3] 后端环境已就绪
+    echo [2/4] 后端环境已就绪
 )
 
 rem ----- 3. 检查配置 -----
 if exist "backend\.env" (
-    echo [3/3] 配置文件已就绪
+    echo [3/4] 配置文件已就绪
 ) else (
-    echo [3/3] [警告] 未找到 backend\.env
+    echo [3/4] [警告] 未找到 backend\.env
 )
 
 rem ----- 4. 启动后端 -----
@@ -67,6 +71,15 @@ cd /d "%~dp0backend"
 start "Tarkov-Helper-Backend" cmd /k ".venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8100"
 cd /d "%~dp0"
 
+rem ----- 5. 等待后端就绪（健康检查轮询，最长 3 分钟）-----
+echo.
+echo 正在等待后端服务就绪（首次启动需联网加载数据，可能较久，请耐心等待）...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0wait-backend.ps1"
+if errorlevel 1 (
+    echo [警告] 后端可能仍在启动，将尝试打开页面（若打不开请稍等后刷新）
+)
+
+rem ----- 6. 打开页面 -----
 echo.
 echo ================================================
 echo    启动完成！
@@ -78,8 +91,6 @@ echo    浏览器即将自动打开聊天页面
 echo    关闭「Tarkov-Helper-Backend」窗口即可停止服务
 echo ================================================
 echo.
-
-timeout /t 5 /nobreak >nul
 start http://localhost:8100/
 
 echo.

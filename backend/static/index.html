@@ -4,7 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>塔科夫助手 · 价格 / 任务 / 藏身处</title>
-<script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<!-- ECharts 已本地化（static/vendor），不再依赖外部 CDN，页面秒开、离线可用 -->
+<script src="/vendor/echarts.min.js" defer></script>
 <style>
   :root {
     --bg: #0f1115;
@@ -45,6 +47,16 @@
   }
   .header .title-row { display: flex; align-items: center; gap: 10px; }
   .header .dot { width: 10px; height: 10px; border-radius: 50%; background: #4caf50; box-shadow: 0 0 8px #4caf50; }
+  .mode-badge {
+    margin-left: auto; align-self: flex-start; margin-top: 4px;
+    font-size: 11px; color: var(--accent);
+    background: transparent;
+    border: 1px solid var(--accent); border-radius: 10px;
+    padding: 3px 12px; opacity: .9; white-space: nowrap;
+    cursor: pointer; transition: background .15s, opacity .15s;
+  }
+  .mode-badge:hover { background: rgba(200, 162, 74, .12); }
+  .mode-badge:disabled { opacity: .5; cursor: not-allowed; }
   .header h1 { font-size: 17px; font-weight: 600; }
   .header .sub { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
   .tabs { display: flex; gap: 4px; margin-top: 12px; }
@@ -89,6 +101,32 @@
   .list-item .name { font-size: 14px; }
   .list-item .meta { font-size: 12px; color: var(--text-dim); margin-top: 3px; }
   .empty-tip { padding: 24px; text-align: center; color: var(--text-dim); font-size: 13px; }
+  /* ===== 分组收束列表（物品按分类 / 任务按商人） ===== */
+  .group { border-bottom: 1px solid var(--border); }
+  .group-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 14px; cursor: pointer; user-select: none;
+    background: var(--panel-2);
+    transition: background .12s;
+  }
+  .group-head:hover { background: #262b35; }
+  .group-arrow { color: var(--accent); font-size: 12px; width: 14px; text-align: center; }
+  .group-name { font-size: 13px; font-weight: 600; }
+  .group-count { font-size: 11px; color: var(--text-dim); background: #2d3a4a; border-radius: 8px; padding: 1px 8px; }
+  .group-body { max-height: 45vh; overflow-y: auto; }
+  .group-toolbar {
+    padding: 8px 14px; font-size: 12px; color: var(--text-dim);
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .group-toolbar a { color: var(--accent); cursor: pointer; }
+  .group-toolbar a:hover { text-decoration: underline; }
+  .btn-ghost {
+    background: transparent; color: var(--text-dim);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 0 14px; font-size: 13px; cursor: pointer; transition: all .15s;
+  }
+  .btn-ghost:hover { color: var(--accent); border-color: var(--accent); }
   /* ===== 详情卡片 ===== */
   .card { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
   .card h3 { font-size: 16px; margin-bottom: 10px; color: var(--accent); }
@@ -151,9 +189,34 @@
     border-radius: 6px; padding: 4px 12px; font-size: 12px; cursor: pointer;
   }
   .seg button.active { color: var(--accent); border-color: var(--accent); }
+  /* ===== 后端启动等待层 ===== */
+  #boot-overlay {
+    position: fixed; inset: 0; z-index: 999;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity .4s ease;
+  }
+  #boot-overlay.fade-out { opacity: 0; pointer-events: none; }
+  .boot-card { text-align: center; }
+  .boot-spinner {
+    width: 44px; height: 44px; margin: 0 auto 18px;
+    border: 4px solid var(--border); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .boot-title { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
+  .boot-sub { font-size: 13px; color: var(--text-dim); }
 </style>
 </head>
 <body>
+<!-- 后端启动等待层：后端未就绪时显示进度，就绪后自动淡出，无需手动刷新 -->
+<div id="boot-overlay">
+  <div class="boot-card">
+    <div class="boot-spinner"></div>
+    <div class="boot-title">塔科夫助手启动中…</div>
+    <div class="boot-sub" id="boot-status">正在连接后端服务，首次启动可能需要 10~60 秒</div>
+  </div>
+</div>
 <div class="app">
   <div class="header">
     <div class="title-row">
@@ -162,6 +225,7 @@
         <h1>塔科夫助手</h1>
         <div class="sub">价格行情 · 任务查询 · 藏身处配方 · 智能问答</div>
       </div>
+      <button class="mode-badge" id="mode-badge" onclick="toggleMode()" title="点击切换价格模式（PvP ⇄ PvE）" disabled>连接中</button>
     </div>
     <div class="tabs">
       <button class="tab active" data-tab="price" onclick="switchTab('price')">价格行情</button>
@@ -177,6 +241,7 @@
       <div class="search-bar">
         <input id="price-search" placeholder="搜索物品，如：显卡、LEDX、比特币、金链" autocomplete="off">
         <button onclick="searchItems()">搜索</button>
+        <button class="btn-ghost" onclick="showAllItems()">全部</button>
       </div>
       <div class="split">
         <div class="col-list" id="price-list"><div class="empty-tip">输入关键词搜索物品</div></div>
@@ -189,9 +254,10 @@
       <div class="search-bar">
         <input id="task-search" placeholder="搜索任务，如：私人诊所、制裁、挖矿" autocomplete="off">
         <button onclick="searchTasks()">搜索</button>
+        <button class="btn-ghost" onclick="showAllTasks()">全部</button>
       </div>
       <div class="split">
-        <div class="col-list" id="task-list"><div class="empty-tip">输入关键词搜索任务，或点「搜索」查看全部</div></div>
+        <div class="col-list" id="task-list"><div class="empty-tip">默认显示全部任务，输入关键词可搜索过滤</div></div>
         <div class="col-detail" id="task-detail"><div class="empty-tip">点击左侧任务查看任务内容</div></div>
       </div>
     </section>
@@ -224,10 +290,100 @@
 </div>
 
 <script>
+/* ================= 后端就绪检测 =================
+   开机/首次启动时后端可能还在加载数据，此时页面先显示等待层，
+   轮询 /api/health 直到后端就绪再淡出，全程无需手动刷新。 */
+const bootOverlay = document.getElementById('boot-overlay');
+const bootStatus = document.getElementById('boot-status');
+let backendReady = false;
+const backendWaiters = [];
+function onBackendReady(fn) { if (backendReady) fn(); else backendWaiters.push(fn); }
+
+async function checkHealth() {
+  try {
+    const r = await fetch('/api/health', { cache: 'no-store' });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch (e) { return null; }
+}
+
+let currentMode = null; // 当前价格模式（pvp / pve），后端就绪后由 /api/health 填充
+
+(async function waitBackend() {
+  const dot = document.querySelector('.header .dot');
+  const badge = document.getElementById('mode-badge');
+  if (dot) dot.style.background = '#c8a24a'; // 未就绪：琥珀色
+  const t0 = Date.now();
+  let health = null;
+  for (let i = 0; !health; i++) {
+    health = await checkHealth();
+    if (health) break;
+    const sec = Math.round((Date.now() - t0) / 1000);
+    bootStatus.textContent = '正在连接后端服务…（已等待 ' + sec + ' 秒）';
+    if (i > 0 && i % 15 === 0) {
+      bootStatus.textContent = '后端仍在启动，首次运行需联网下载数据，请耐心等待…（已等待 ' + sec + ' 秒）';
+    }
+    await new Promise(res => setTimeout(res, 1200));
+  }
+  if (dot) dot.style.background = '#4caf50'; // 就绪：绿色
+  if (badge) {
+    currentMode = health.mode === 'pve' ? 'pve' : 'pvp';
+    badge.textContent = currentMode === 'pve' ? 'PvE 价格' : 'PvP 价格';
+    badge.disabled = false;
+  }
+  bootOverlay.classList.add('fade-out');
+  setTimeout(() => bootOverlay.remove(), 400);
+  backendWaiters.splice(0).forEach(fn => fn());
+  // 默认价格栏：后端就绪后自动加载全部物品（按分类收束展示）
+  loadAllItems();
+})();
+
+/* 右上角一键切换 PvP / PvE 价格模式 */
+async function toggleMode() {
+  const badge = document.getElementById('mode-badge');
+  if (!currentMode || badge.disabled) return;
+  const target = currentMode === 'pve' ? 'pvp' : 'pve';
+  badge.disabled = true;
+  badge.textContent = '切换中…';
+  try {
+    const resp = await fetch('/api/mode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: target })
+    });
+    const data = await resp.json();
+    if (data.status !== 'ok' || data.error) throw new Error(data.error || '切换失败');
+    currentMode = data.mode;
+    badge.textContent = currentMode === 'pve' ? 'PvE 价格' : 'PvP 价格';
+    // 模式已切换：清空旧模式的数据缓存，重新加载当前页列表
+    allItemsLoaded = false;
+    allItemGroups = [];
+    allTasksLoaded = false;
+    allTasksList = [];
+    document.getElementById('price-search').value = '';
+    document.getElementById('price-list').innerHTML =
+      '<div class="empty-tip">已切换到 ' + (currentMode === 'pve' ? 'PvE' : 'PvP') + ' 模式，正在加载…</div>';
+    document.getElementById('price-detail').innerHTML = '<div class="empty-tip">点击左侧物品查看价格与趋势</div>';
+    document.getElementById('task-search').value = '';
+    const activeTab = document.querySelector('.tab.active') ? document.querySelector('.tab.active').dataset.tab : 'price';
+    if (activeTab === 'task') { loadAllTasks(); } else { loadAllItems(); }
+    // 藏身处数据重置，下次进入自动按新模式加载
+    hideoutLoaded = false;
+    hideoutData = { crafts: [], barters: [], stations: [] };
+  } catch (e) {
+    badge.textContent = currentMode === 'pve' ? 'PvE 价格' : 'PvP 价格';
+    alert('切换失败：' + e.message);
+  } finally {
+    badge.disabled = false;
+  }
+}
+
 /* ================= Tab 切换 ================= */
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+  if (name === 'price' && !allItemsLoaded) loadAllItems();
+  if (name === 'task' && !allTasksLoaded) loadAllTasks();
   if (name === 'hideout' && !hideoutLoaded) loadHideout();
 }
 
@@ -241,17 +397,100 @@ function fmtPrice(v) {
   if (n >= 10000) return (n / 10000).toFixed(1) + ' 万';
   return n.toLocaleString();
 }
-async function getJSON(url) {
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error('HTTP ' + resp.status);
-  return resp.json();
+async function getJSON(url, retries = 3) {
+  // 后端重启/瞬断时自动重试（指数退避），避免一失败就白屏
+  for (let i = 0; ; i++) {
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      return await resp.json();
+    } catch (e) {
+      if (i >= retries - 1) throw e;
+      await new Promise(res => setTimeout(res, 800 * (i + 1)));
+    }
+  }
+}
+
+/* 等 ECharts 就绪后再渲染图表（本地脚本异步加载，防御性等待） */
+function whenEcharts(cb, tries = 0) {
+  if (typeof echarts !== 'undefined') { cb(); return; }
+  if (tries > 50) { // 5 秒内没加载出来，放弃并提示
+    const el = document.getElementById('trend-chart');
+    if (el) el.innerHTML = '<div class="empty-tip">图表组件加载失败</div>';
+    return;
+  }
+  setTimeout(() => whenEcharts(cb, tries + 1), 100);
 }
 
 /* ================= 价格行情 ================= */
+let allItemGroups = [];      // 全部物品（按分类分组）[{type, items}]
+let allItemsLoaded = false;
+let itemGroupExpanded = {};  // 分类展开状态
+
+function itemRowHtml(it) {
+  return '<div class="list-item" onclick="showItem(\'' + it.id + '\')">' +
+    '<div class="name">' + escapeHtml(it.name) + '</div>' +
+    '<div class="meta">' + escapeHtml(it.normalizedName) + '</div></div>';
+}
+
+/* 加载全部物品（按分类分组收束显示） */
+async function loadAllItems() {
+  const list = document.getElementById('price-list');
+  list.innerHTML = '<div class="empty-tip">加载中…</div>';
+  try {
+    const data = await getJSON('/api/items');
+    allItemGroups = data.groups || [];
+    allItemsLoaded = true;
+    renderItemGroups();
+  } catch (e) {
+    list.innerHTML = '<div class="empty-tip">加载失败：' + escapeHtml(e.message) + '</div>';
+  }
+}
+
+function showAllItems() {
+  document.getElementById('price-search').value = '';
+  if (allItemsLoaded) renderItemGroups();
+  else loadAllItems();
+}
+
+function renderItemGroups() {
+  const list = document.getElementById('price-list');
+  if (!allItemsLoaded || allItemGroups.length === 0) {
+    list.innerHTML = '<div class="empty-tip">暂无物品数据</div>';
+    return;
+  }
+  const total = allItemGroups.reduce((n, g) => n + g.items.length, 0);
+  let html = '<div class="group-toolbar">共 ' + total + ' 个物品，按分类折叠 · ' +
+    '<a onclick="toggleAllItemGroups(true)">全部展开</a> / ' +
+    '<a onclick="toggleAllItemGroups(false)">全部收起</a></div>';
+  html += allItemGroups.map(g => {
+    const expanded = !!itemGroupExpanded[g.type];
+    return '<div class="group">' +
+      '<div class="group-head" onclick="toggleItemGroup(\'' + g.type + '\')">' +
+      '<span class="group-arrow">' + (expanded ? '▾' : '▸') + '</span>' +
+      '<span class="group-name">' + escapeHtml(g.type) + '</span>' +
+      '<span class="group-count">' + g.items.length + '</span>' +
+      '</div>' +
+      (expanded ? '<div class="group-body">' + g.items.map(itemRowHtml).join('') + '</div>' : '') +
+      '</div>';
+  }).join('');
+  list.innerHTML = html;
+}
+
+function toggleItemGroup(type) {
+  itemGroupExpanded[type] = !itemGroupExpanded[type];
+  renderItemGroups();
+}
+
+function toggleAllItemGroups(expand) {
+  allItemGroups.forEach(g => { itemGroupExpanded[g.type] = expand; });
+  renderItemGroups();
+}
+
 async function searchItems() {
   const kw = document.getElementById('price-search').value.trim();
   const list = document.getElementById('price-list');
-  if (!kw) { list.innerHTML = '<div class="empty-tip">输入关键词搜索物品</div>'; return; }
+  if (!kw) { showAllItems(); return; }
   list.innerHTML = '<div class="empty-tip">搜索中…</div>';
   try {
     const data = await getJSON('/api/search?keyword=' + encodeURIComponent(kw) + '&limit=20');
@@ -259,11 +498,7 @@ async function searchItems() {
       list.innerHTML = '<div class="empty-tip">没找到相关物品，换个关键词试试</div>';
       return;
     }
-    list.innerHTML = data.items.map(it =>
-      '<div class="list-item" onclick="showItem(\'' + it.id + '\')">' +
-      '<div class="name">' + escapeHtml(it.name) + '</div>' +
-      '<div class="meta">' + escapeHtml(it.normalizedName) + '</div></div>'
-    ).join('');
+    list.innerHTML = data.items.map(itemRowHtml).join('');
     // 自动选中第一个
     showItem(data.items[0].id);
   } catch (e) {
@@ -326,39 +561,111 @@ async function loadTrend(id, name, days) {
       return;
     }
     const el = document.getElementById('trend-chart');
-    const chart = echarts.init(el);
-    const labels = data.points.map(p => { const d = new Date(p.ts); return (d.getMonth() + 1) + '/' + d.getDate(); });
-    const values = data.points.map(p => Math.round(p.price));
-    chart.setOption({
-      backgroundColor: 'transparent',
-      grid: { left: 60, right: 16, top: 16, bottom: 28 },
-      tooltip: { trigger: 'axis', valueFormatter: v => v + ' 卢布' },
-      xAxis: { type: 'category', data: labels, axisLabel: { color: '#9aa0aa' }, axisLine: { lineStyle: { color: '#2e3440' } } },
-      yAxis: { type: 'value', name: '卢布', nameTextStyle: { color: '#9aa0aa' }, axisLabel: { color: '#9aa0aa', formatter: v => (v >= 10000 ? (v / 10000) + '万' : v) }, splitLine: { lineStyle: { color: '#2e3440' } } },
-      series: [{ type: 'line', data: values, smooth: true, showSymbol: false, lineStyle: { color: '#c8a24a', width: 2 }, areaStyle: { color: 'rgba(200,162,74,0.15)' } }]
+    whenEcharts(() => {
+      const chart = echarts.init(el);
+      const labels = data.points.map(p => { const d = new Date(p.ts); return (d.getMonth() + 1) + '/' + d.getDate(); });
+      const values = data.points.map(p => Math.round(p.price));
+      chart.setOption({
+        backgroundColor: 'transparent',
+        grid: { left: 60, right: 16, top: 16, bottom: 28 },
+        tooltip: { trigger: 'axis', valueFormatter: v => v + ' 卢布' },
+        xAxis: { type: 'category', data: labels, axisLabel: { color: '#9aa0aa' }, axisLine: { lineStyle: { color: '#2e3440' } } },
+        yAxis: { type: 'value', name: '卢布', nameTextStyle: { color: '#9aa0aa' }, axisLabel: { color: '#9aa0aa', formatter: v => (v >= 10000 ? (v / 10000) + '万' : v) }, splitLine: { lineStyle: { color: '#2e3440' } } },
+        series: [{ type: 'line', data: values, smooth: true, showSymbol: false, lineStyle: { color: '#c8a24a', width: 2 }, areaStyle: { color: 'rgba(200,162,74,0.15)' } }]
+      });
+      window.addEventListener('resize', () => chart.resize());
     });
-    window.addEventListener('resize', () => chart.resize());
   } catch (e) {
     document.getElementById('trend-chart').innerHTML = '<div class="empty-tip">趋势加载失败</div>';
   }
 }
 
 /* ================= 任务查询 ================= */
-async function searchTasks() {
-  const kw = document.getElementById('task-search').value.trim();
+let allTasksList = [];       // 全部任务（原始）
+let currentTaskList = [];    // 当前展示的任务（全部或搜索结果）
+let allTasksLoaded = false;
+let taskGroupExpanded = {};  // 商人分组展开状态
+
+function taskRowHtml(t) {
+  return '<div class="list-item" onclick="showTask(\'' + t.id + '\')">' +
+    '<div class="name">' + escapeHtml(t.name) + '</div>' +
+    '<div class="meta">' + escapeHtml(t.normalizedName) + '</div></div>';
+}
+
+/* 加载全部任务（按商人分组收束显示） */
+async function loadAllTasks() {
   const list = document.getElementById('task-list');
   list.innerHTML = '<div class="empty-tip">加载中…</div>';
   try {
-    const data = await getJSON('/api/tasks?keyword=' + encodeURIComponent(kw) + '&limit=200');
-    if (!data.tasks || data.tasks.length === 0) {
-      list.innerHTML = '<div class="empty-tip">没找到相关任务</div>';
-      return;
-    }
-    list.innerHTML = data.tasks.map(t =>
-      '<div class="list-item" onclick="showTask(\'' + t.id + '\')">' +
-      '<div class="name">' + escapeHtml(t.name) + '</div>' +
-      '<div class="meta">' + escapeHtml(t.normalizedName) + '</div></div>'
-    ).join('');
+    const data = await getJSON('/api/tasks?keyword=&limit=1000');
+    allTasksList = data.tasks || [];
+    allTasksLoaded = true;
+    renderTaskGroups(allTasksList);
+  } catch (e) {
+    list.innerHTML = '<div class="empty-tip">加载失败：' + escapeHtml(e.message) + '</div>';
+  }
+}
+
+function showAllTasks() {
+  document.getElementById('task-search').value = '';
+  if (allTasksLoaded) renderTaskGroups(allTasksList);
+  else loadAllTasks();
+}
+
+function renderTaskGroups(tasks) {
+  currentTaskList = tasks;
+  const list = document.getElementById('task-list');
+  if (!tasks || tasks.length === 0) {
+    list.innerHTML = '<div class="empty-tip">没找到相关任务</div>';
+    return;
+  }
+  // 按商人分组
+  const groups = {};
+  const order = [];
+  tasks.forEach(t => {
+    const trader = t.trader || '其他';
+    if (!(trader in groups)) { groups[trader] = []; order.push(trader); }
+    groups[trader].push(t);
+  });
+  // 按任务数降序排商人
+  order.sort((a, b) => groups[b].length - groups[a].length);
+  let html = '<div class="group-toolbar">共 ' + tasks.length + ' 个任务，按商人折叠 · ' +
+    '<a onclick="toggleAllTaskGroups(true)">全部展开</a> / ' +
+    '<a onclick="toggleAllTaskGroups(false)">全部收起</a></div>';
+  html += order.map(trader => {
+    const expanded = !!taskGroupExpanded[trader];
+    return '<div class="group">' +
+      '<div class="group-head" onclick="toggleTaskGroup(\'' + trader + '\')">' +
+      '<span class="group-arrow">' + (expanded ? '▾' : '▸') + '</span>' +
+      '<span class="group-name">' + escapeHtml(trader) + '</span>' +
+      '<span class="group-count">' + groups[trader].length + '</span>' +
+      '</div>' +
+      (expanded ? '<div class="group-body">' + groups[trader].map(taskRowHtml).join('') + '</div>' : '') +
+      '</div>';
+  }).join('');
+  list.innerHTML = html;
+}
+
+function toggleTaskGroup(trader) {
+  taskGroupExpanded[trader] = !taskGroupExpanded[trader];
+  renderTaskGroups(currentTaskList);
+}
+
+function toggleAllTaskGroups(expand) {
+  const traders = {};
+  currentTaskList.forEach(t => { traders[t.trader || '其他'] = true; });
+  Object.keys(traders).forEach(tr => { taskGroupExpanded[tr] = expand; });
+  renderTaskGroups(currentTaskList);
+}
+
+async function searchTasks() {
+  const kw = document.getElementById('task-search').value.trim();
+  const list = document.getElementById('task-list');
+  if (!kw) { showAllTasks(); return; }
+  list.innerHTML = '<div class="empty-tip">搜索中…</div>';
+  try {
+    const data = await getJSON('/api/tasks?keyword=' + encodeURIComponent(kw) + '&limit=1000');
+    renderTaskGroups(data.tasks || []);
   } catch (e) {
     list.innerHTML = '<div class="empty-tip">加载失败：' + escapeHtml(e.message) + '</div>';
   }
@@ -511,7 +818,6 @@ function renderChart(chartData, parentEl) {
   parentEl.appendChild(container);
   scrollBottom();
   const doRender = () => {
-    if (typeof echarts === 'undefined') { setTimeout(doRender, 200); return; }
     const chart = echarts.init(container);
     const labels = chartData.points.map(p => { const d = new Date(p.ts); return (d.getMonth() + 1) + '/' + d.getDate(); });
     const values = chartData.points.map(p => Math.round(p.price));
@@ -526,7 +832,7 @@ function renderChart(chartData, parentEl) {
     });
     window.addEventListener('resize', () => chart.resize());
   };
-  doRender();
+  whenEcharts(doRender);
 }
 
 async function sendMessage() {

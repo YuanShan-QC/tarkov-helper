@@ -57,13 +57,29 @@ python -m uvicorn main:app --host 127.0.0.1 --port 8100
 # 首次启动会自动：下载 embedding 模型（或复用 models/ 本地缓存）+ 后台构建向量库
 ```
 
+可选配置（backend/.env）：
+
+```bash
+TARKOV_MODE=pvp            # 价格数据模式：pvp（regular 经典模式，默认）或 pve
+TARKOV_ITEMS_TTL=21600     # 物品/价格缓存有效期（秒），默认 6 小时
+TARKOV_KNOWLEDGE_TTL=86400 # 任务/配方等知识数据缓存有效期（秒），默认 24 小时
+TARKOV_REFRESH_INTERVAL=1800  # 后台联网刷新检查间隔（秒），默认 30 分钟
+```
+
+> 说明：tarkov.dev 提供 PvP（/regular/*）与 PvE（/pve/*）两套独立价格经济，
+> 价格差异很大（如显卡 PvP 约 32 万 vs PvE 约 78 万卢布）。
+> 两种模式的本地缓存分开存放，切换模式互不影响；切换后首次启动会联网拉取对应模式的数据。
+> 页面右上角也有 **PvP/PvE 一键切换按钮**（POST /api/mode），无需改配置、无需重启。
+
 接口：
 
 ```bash
 POST /api/chat           # {"message": "捡了个显卡，卖给商人还是挂跳蚤划算"}
 POST /api/chat/stream    # 流式对话（SSE，含工具调用轨迹 + chart 图表数据）
 GET  /api/price/trend/{item_id}?days=30   # 本地价格趋势（折线图数据源）
+GET  /api/items          # 全部物品（按分类分组，价格栏"全部"视图）
 POST /api/reset          # 重置会话
+POST /api/mode           # 运行时切换 PvP/PvE 价格模式 {"mode":"pve"}
 ```
 
 ## 对话示例

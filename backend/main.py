@@ -10,17 +10,21 @@ FastAPI 入口 —— 塔科夫市场查询助手
 """
 import json
 import logging
+import os
+import threading
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel
 
 from agent import ReActAgent
-from tarkov_client import tarkov
+from tarkov_client import tarkov, CATEGORY_DISPLAY_ORDER
 from price_store import price_store
 from knowledge_base import kb
+import config  # 模式可运行时切换，必须动态读取 config.GAME_MODE
 import tools  # 用 tools.last_trend_chart 读取（模块属性访问，避免值拷贝陷阱）
 
 # 关闭 httpx 的噪音日志
@@ -33,12 +37,29 @@ MAX_STEPS = 8  # 最大工具调用步数，防止死循环
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用启动时预加载数据 + 启动价格管道 + 后台构建知识库"""
+    """启动：本地缓存秒级加载 → 后台刷新数据 → 价格管道 → 后台构建知识库"""
+    print(f"[启动] 价格数据模式：{config.GAME_MODE.upper()}（{'PvE' if config.GAME_MODE == 'pve' else 'PvP'}）")
+    # 物品数据：优先读本地磁盘缓存（秒级完成），无缓存才联网（首次运行）
     try:
         tarkov.load()
         print(f"[启动] 已加载 {len(tarkov.items)} 个物品数据")
     except Exception as e:
-        print(f"[警告] 预加载数据失败（将在首次查询时重试）: {e}")
+        print(f"[警告] 预加载数据失败（将在后台重试）: {e}")
+
+    # 后台周期性刷新 tarkov.dev 数据：缓存过期才联网拉新数据，不阻塞启动。
+    # 每 TARKOV_REFRESH_INTERVAL 秒检查一次（默认 30 分钟），
+    # 保证长时间运行的实例数据也不会过期（物品 ≤6h、知识库 ≤24h）。
+    refresh_interval = int(os.getenv("TARKOV_REFRESH_INTERVAL", "1800"))
+
+    def _refresh_loop():
+        while True:
+            try:
+                tarkov.maybe_refresh_all()
+            except Exception as e:
+                print(f"[缓存] 后台刷新异常：{e}")
+            time.sleep(refresh_interval)
+
+    threading.Thread(target=_refresh_loop, daemon=True, name="tarkov-refresh").start()
 
     # 启动价格管道：后台线程每小时抓一次全量价格快照
     try:
@@ -52,7 +73,6 @@ async def lifespan(app: FastAPI):
         print(f"[警告] 价格管道启动失败: {e}")
 
     # 后台构建知识库（不阻塞启动；首次检索时也会自动兜底构建）
-    import threading
     def _build_kb():
         try:
             kb.build()
@@ -73,13 +93,68 @@ class ChatRequest(BaseModel):
 
 @app.get("/")
 def index():
-    """返回聊天页面（前端界面）"""
-    return FileResponse(Path(__file__).parent / "static" / "index.html")
+    """返回聊天页面（前端界面）。no-cache：每次打开都拿最新版本，避免改版后看不到更新。"""
+    return FileResponse(
+        Path(__file__).parent / "static" / "index.html",
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
+@app.get("/vendor/{path:path}")
+def vendor_files(path: str):
+    """前端静态资源（本地化的 echarts 等）。长缓存：文件带版本号，内容不变则直接复用。"""
+    base = (Path(__file__).parent / "static" / "vendor").resolve()
+    target = (base / path).resolve()
+    # 防目录穿越：目标必须在 vendor 目录内
+    if target != base and base not in target.parents:
+        raise HTTPException(status_code=404, detail="Not Found")
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="Not Found")
+    return FileResponse(
+        target,
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
+
+
+@app.get("/favicon.svg")
+def favicon_svg():
+    """站点图标（浏览器标签页显示），消除 /favicon.ico 404 噪音日志"""
+    return FileResponse(
+        Path(__file__).parent / "static" / "favicon.svg",
+        media_type="image/svg+xml",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@app.get("/favicon.ico")
+def favicon_ico():
+    """兼容仍请求 .ico 的浏览器：重定向到 SVG 图标"""
+    return RedirectResponse(url="/favicon.svg", status_code=307)
 
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "service": "塔科夫市场查询助手", "version": "0.1.0"}
+    return {"status": "ok", "service": "塔科夫市场查询助手", "version": "0.1.0", "mode": config.GAME_MODE}
+
+
+class ModeRequest(BaseModel):
+    mode: str
+
+
+@app.post("/api/mode")
+def set_mode(req: ModeRequest):
+    """
+    运行时切换价格模式（pvp / pve）：
+    更新数据源 → 重载对应模式数据（优先本地缓存，无缓存才联网）→ 返回切换结果。
+    页面右上角按钮调用；切换后价格、趋势、任务/配方数据均按新模式提供。
+    """
+    try:
+        result = tarkov.set_mode(req.mode)
+        return {"status": "ok", **result}
+    except ValueError as e:
+        return {"status": "error", "error": str(e)}
+    except Exception as e:
+        return {"status": "error", "error": f"切换失败：{e}"}
 
 
 @app.post("/api/chat")
@@ -216,6 +291,26 @@ def search_items(keyword: str = "", limit: int = 20):
         return {"items": [], "error": f"搜索失败：{e}"}
 
 
+@app.get("/api/items")
+def all_items():
+    """全部物品（按分类分组，供价格栏"全部物品"收束展示）"""
+    try:
+        items = tarkov.list_items()
+        groups = {}
+        for it in items:
+            t = it["type"]
+            if t not in groups:
+                groups[t] = []
+            groups[t].append(it)
+        # 固定分类顺序，未知分类排最后
+        def sort_key(t):
+            return CATEGORY_DISPLAY_ORDER.index(t) if t in CATEGORY_DISPLAY_ORDER else 999
+        order = sorted(groups.keys(), key=sort_key)
+        return {"groups": [{"type": t, "items": groups[t]} for t in order]}
+    except Exception as e:
+        return {"groups": [], "error": f"加载物品失败：{e}"}
+
+
 @app.get("/api/item/{item_id}")
 def item_detail(item_id: str):
     """物品详情 + 当前价格（供价格栏使用）"""
@@ -245,9 +340,9 @@ def item_detail(item_id: str):
 
 @app.get("/api/tasks")
 def task_list(keyword: str = "", limit: int = 100):
-    """任务列表/搜索（供任务栏使用）"""
+    """任务列表/搜索（供任务栏使用）；keyword 为空时返回全部任务"""
     try:
-        limit = max(1, min(int(limit), 500))
+        limit = max(1, min(int(limit), 1000))
     except (TypeError, ValueError):
         limit = 100
     try:

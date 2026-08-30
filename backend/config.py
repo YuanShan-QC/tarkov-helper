@@ -23,3 +23,20 @@ MODEL = "deepseek-v4-pro"
 
 # tarkov.dev 数据 API 基地址（免费，无需 key）
 TARKOV_API_BASE = os.getenv("TARKOV_API_BASE", "https://json.tarkov.dev")
+
+# ===== 游戏模式（价格数据源）=====
+# tarkov.dev 提供两套独立经济：regular（PvP 经典模式，默认）与 pve（PvE 模式）。
+# 可通过 .env 设置 TARKOV_MODE=pvp 或 pve，也可在页面右上角一键切换（POST /api/mode）。
+GAME_MODE = os.getenv("TARKOV_MODE", "pvp").strip().lower()
+if GAME_MODE not in ("pvp", "pve"):
+    print(f"[配置] 未知 TARKOV_MODE={GAME_MODE!r}，回退为 pvp")
+    GAME_MODE = "pvp"
+# 端点前缀：/regular/* = PvP，/pve/* = PvE
+TARKOV_MODE_PREFIX = "/pve" if GAME_MODE == "pve" else "/regular"
+
+
+def set_game_mode(mode: str):
+    """运行时切换游戏模式（更新模块级变量；其他模块需通过 config.XXX 动态读取）"""
+    global GAME_MODE, TARKOV_MODE_PREFIX
+    GAME_MODE = mode
+    TARKOV_MODE_PREFIX = "/pve" if mode == "pve" else "/regular"

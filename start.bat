@@ -68,7 +68,7 @@ rem ----- 4. 启动后端 -----
 echo.
 echo 正在启动后端服务（端口 8100）...
 cd /d "%~dp0backend"
-start "Tarkov-Helper-Backend" cmd /k ".venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8100"
+start "Tarkov-Helper-Backend" cmd /k ".venv\Scripts\python.exe run.py"
 cd /d "%~dp0"
 
 rem ----- 5. 等待后端就绪（健康检查轮询，最长 3 分钟）-----

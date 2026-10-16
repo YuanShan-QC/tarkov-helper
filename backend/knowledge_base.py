@@ -12,6 +12,7 @@ Embedding 模型：BAAI/bge-small-zh-v1.5（中文检索优化，512 维，ONNX 
 """
 import os
 import json
+import re
 import threading
 from pathlib import Path
 
@@ -41,6 +42,91 @@ TYPE_MAP = {
     "gun": "武器", "ammo": "弹药", "armor": "护甲", "barter": "物资",
     "wearable": "穿戴", "container": "容器", "key": "钥匙",
 }
+
+# ===== 词法加权（解决短查询/任务名查询漂移）=====
+# 语义检索对短查询不稳：问「收藏家」三个字，向量会漂到「藏身处」「制造配方」上去，
+# 目标文档直接掉出 top-5，模型于是回答「知识库没有收录这一项」。
+# 这里补一层词法匹配：查询与文档标题（meta.name / normalizedName）的重合度，
+# 叠加到语义分数上排序。词法信号只用于「排得更靠前」，不参与 score 上报。
+LEXICAL_WEIGHT = 0.8
+TITLE_FIELDS = ("name", "normalizedName")
+# 标题「原样出现在查询里」才算强信号，且必须有足够长度。
+# 中文取 3 字：「收藏家」能命中，而「什么」「任务」这类泛词不会把无关文档顶上来
+# （实测「显卡有什么用」曾因匹配到「什么」把无关任务顶到第一）。
+# 英文取 5 字符：让 collector / ledx-skin-transilluminator 这类规范名能命中，
+# 而 ledx、gpu 这种短缩写不参与（避免泛命中）。
+MIN_TITLE_SUBSTR_CJK = 3
+MIN_TITLE_SUBSTR_ASCII = 5
+
+# 汉语高频功能词组合：这类 n-gram 命中不代表「用户点名的就是这个文档」，
+# 参与打分只会在语义分接近时把无关文档顶上来（实测「显卡有什么用」会被
+# 「U盘里有什么？」靠「有什么」抢到第一）。从 n-gram 集合里剔掉。
+_NOISE_SUBSTRINGS = (
+    "什么", "怎么", "哪些", "哪个", "多少", "多少", "需要", "有什", "有哪",
+    "可以", "能否", "如何", "为什", "这个", "那个", "一下", "谢谢", "请问",
+)
+
+
+def _is_noise(gram: str) -> bool:
+    return any(g in gram for g in _NOISE_SUBSTRINGS)
+
+
+def _substring_eligible(title: str) -> bool:
+    """标题长度是否够格作为「被查询点名」的强信号。"""
+    if title.isascii():
+        return len(title) >= MIN_TITLE_SUBSTR_ASCII
+    return len(title) >= MIN_TITLE_SUBSTR_CJK
+
+
+def _char_ngrams(text: str, lo: int = 2, hi: int = 4) -> set:
+    """中文按 2~4 字滑窗，英文/数字按整词，全部小写。
+
+    高频功能词组合（见 _NOISE_SUBSTRINGS）不参与，避免「有什么」这种
+    泛化重合把无关文档加权上来。
+    """
+    if not text:
+        return set()
+    grams = set()
+    for run in re.findall(r'[\u4e00-\u9fff]+', text):
+        for n in range(lo, hi + 1):
+            for i in range(len(run) - n + 1):
+                gram = run[i:i + n]
+                if not _is_noise(gram):
+                    grams.add(gram)
+    for tok in re.findall(r'[A-Za-z0-9]+', text):
+        grams.add(tok.lower())
+    return grams
+
+
+def _title_lexical_score(query: str, meta: dict) -> float:
+    """查询与文档标题的词法重合度（0~1），用于给精确提及的文档加权。"""
+    titles = [str(meta.get(f, "")) for f in TITLE_FIELDS]
+    titles = [t for t in titles if t]
+    if not query or not titles:
+        return 0.0
+
+    q_lower = query.lower()
+    q_grams = _char_ngrams(query)
+    q_len = len(q_grams) or 1
+
+    best = 0.0
+    for title in titles:
+        t_lower = title.lower()
+        score = 0.0
+        # 标题被查询完整包含（「收藏家任务要交什么」含「收藏家」/「Collector 任务」含「collector」）
+        if _substring_eligible(title) and t_lower in q_lower:
+            score = 1.0
+        else:
+            # 两个方向的 n-gram 覆盖率取大者（已剔除高频功能词组合）
+            t_grams = _char_ngrams(title)
+            t_len = len(t_grams) or 1
+            score = max(len(q_grams & t_grams) / q_len,
+                        len(q_grams & t_grams) / t_len)
+            # 弱重合不给加权：语义分本身很接近时，一点点词法噪音就能改变排序，
+            # 所以只有「明显点名」才算数（3 次方压平中低分段）。
+            score = score ** 3
+        best = max(best, score)
+    return best
 
 # 任务目标类型 → 动词（用于生成"需要上交/寻找 X"的描述）
 OBJECTIVE_VERB = {
@@ -120,7 +206,10 @@ class KnowledgeBase:
             w, h = item.get("width"), item.get("height")
             bp = item.get("basePrice")
             text = f"物品百科：{name}。英文名 {norm}，类型 {type_zh}，占格 {w}x{h}，基础价 {bp} 卢布。"
-            docs.append({"text": text, "meta": {"type": "item", "id": iid, "name": name}})
+            docs.append({"text": text, "meta": {
+                "type": "item", "id": iid, "name": name,
+                "normalizedName": norm,
+            }})
         return docs
 
     def _task_docs(self):
@@ -148,7 +237,10 @@ class KnowledgeBase:
             if not parts:
                 continue
             text = f"任务「{name}」需求：" + "；".join(parts)
-            docs.append({"text": text, "meta": {"type": "task", "id": tid, "name": name}})
+            docs.append({"text": text, "meta": {
+                "type": "task", "id": tid, "name": name,
+                "normalizedName": task.get("normalizedName", ""),
+            }})
         return docs
 
     def _craft_docs(self):
@@ -203,6 +295,25 @@ class KnowledgeBase:
         return docs
 
     # ---------- 检索 ----------
+    def _exact_title_hits(self, query: str) -> set:
+        """全库扫描：标题（中文名/英文规范名）原样出现在查询里的文档下标。
+
+        这是「用户明确点名了某个物品/任务」的强信号，优先级高于语义相似度。
+        纯字符串比对，7000 条文档成本可忽略。
+        """
+        if not query:
+            return set()
+        q_lower = query.lower()
+        hits = set()
+        for i, d in enumerate(self.docs):
+            meta = d.get("meta") or {}
+            for field in TITLE_FIELDS:
+                title = str(meta.get(field, "")).lower()
+                if _substring_eligible(title) and title in q_lower:
+                    hits.add(i)
+                    break
+        return hits
+
     def _expand_query(self, query: str) -> str:
         """把查询里的英文缩写（LEDX/GPU/BTC 等）展开成中文全名，提升检索命中。
 
@@ -246,14 +357,32 @@ class KnowledgeBase:
             # 余弦相似度 = 归一化后点积
             norms = np.linalg.norm(self.vectors, axis=1, keepdims=True)
             sims = (self.vectors @ qvec) / (norms[:, 0] + 1e-9)
-            top_idx = np.argsort(-sims)[:top_k]
+
+            # 先多取一批候选，再用词法加权重排。
+            # 池子取大一些：语义排序对短查询/英文名不可靠，需要足够候选让词法信号起作用。
+            pool = min(len(self.docs), max(top_k * 60, 300))
+            cand_idx = set(int(i) for i in np.argsort(-sims)[:pool])
+
+            # 标题直查：全库扫一遍「标题是否原样出现在查询里」。
+            # 为什么必须全库扫：像「Collector 任务」，目标文档的语义排名在 1400 名开外，
+            # 任何有限候选池都捞不到它，只有标题字面命中才能救回来。
+            # 代价极低——纯字符串包含判断，7000 条约几毫秒。
+            cand_idx |= self._exact_title_hits(query)
+
+            ranked = []
+            for i in cand_idx:
+                d = self.docs[i]
+                semantic = float(sims[i])
+                lexical = _title_lexical_score(query, d.get("meta", {}))
+                ranked.append((semantic + LEXICAL_WEIGHT * lexical, semantic, d))
+            ranked.sort(key=lambda x: -x[0])
+
             results = []
-            for i in top_idx:
-                d = self.docs[int(i)]
+            for _, semantic, d in ranked[:top_k]:
                 results.append({
                     "text": d["text"],
                     "meta": d["meta"],
-                    "score": float(sims[int(i)]),
+                    "score": semantic,   # 仍上报语义分，便于观察真实相似度
                 })
             return results
         except Exception as e:

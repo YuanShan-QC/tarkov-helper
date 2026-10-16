@@ -34,6 +34,7 @@
 
 ```
 backend/
+├── run.py            # 启动入口（Windows 上先切 SelectorEventLoop，再拉起 uvicorn）
 ├── main.py           # FastAPI 入口（/api/chat 对话、/api/chat/stream 流式、/api/price/trend 趋势）
 ├── config.py         # 配置（DeepSeek 客户端 + API 地址）
 ├── tarkov_client.py  # tarkov.dev 数据层（物品/任务/配方/藏身处 + 中文名解析）
@@ -53,9 +54,19 @@ backend/
 cd backend
 pip install -r requirements.txt
 # 配置 backend/.env（DeepSeek API key）
-python -m uvicorn main:app --host 127.0.0.1 --port 8100
+python run.py                      # 推荐：等价于 uvicorn main:app --host 127.0.0.1 --port 8100
 # 首次启动会自动：下载 embedding 模型（或复用 models/ 本地缓存）+ 后台构建向量库
 ```
+
+> **Windows 必读：请用 `python run.py` 启动，不要直接用 `python -m uvicorn main:app`。**
+> Windows 上 asyncio 默认的 **ProactorEventLoop** 会让 uvicorn 的 `accept()` 抛
+> `OSError: [WinError 10014] 系统检测到在一个调用中尝试使用指针参数时的无效指针地址`，
+> 监听套接字随即失效，浏览器表现为「无法访问此网站 / 一直转圈」。
+> uvicorn 只在 `--reload` / `--workers`（`use_subprocess`）时才切到 SelectorEventLoop，
+> 单进程启动会保留 Proactor。`run.py` 在创建事件循环前显式设置
+> `WindowsSelectorEventLoopPolicy` 从根上规避该问题；
+> `main.py` 顶部也加了同样的兜底，直接跑 uvicorn 同样安全。
+> （桌面一键启动 `start.bat` 已同步改为调用 `run.py`。）
 
 可选配置（backend/.env）：
 

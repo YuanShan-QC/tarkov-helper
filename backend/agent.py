@@ -12,6 +12,43 @@ import json, re
 from config import client, MODEL
 from tools import TOOLS
 
+# ===== 观察结果（OBSERVATION）长度预算 =====
+# 历史预算按「字符」粗略折算（中文约 1 token/字），给模型留足上下文空间。
+# 注意：这里是「每步工具结果」的预算，不是上下文窗口硬限制——
+# DeepSeek 上下文远大于此，所以不需要抠得太紧。
+# 这些值偏大是有意的：RAG 检索一次可能返回好几条任务/配方，
+# 之前 300 字硬切会把「收藏家」这类长清单切成 7 项就断，
+# 模型因此误判「知识库到这儿就没了」。
+MAX_OBS_CHARS = 8000     # 单条观察上限：够放下一次完整 RAG 检索结果
+MAX_HISTORY_CHARS = 16000  # 整个任务记录上限（约 2~4 步的完整观察）
+LLM_MAX_TOKENS = 1500   # 单轮输出上限：要能列完「收藏家」这类 40+ 项的长清单
+
+# 模型没吐出 ACT/DONE 时的重试提示（实测模型偶尔只输出一段 THOUGHT 就停了）
+RETRY_INSTRUCTION = ("你刚才的输出里没有可执行的 ACT，也没有 DONE。"
+                     "请严格按格式只输出下一步："
+                     "要么 `ACT: 工具名({\"参数\": \"值\"})`，要么 `DONE: 给用户的最终回复`。")
+
+
+def _clip_observation(text: str) -> str:
+    """裁剪过长的观察结果。
+
+    尽量在分隔符（换行 / ；）处断开，避免把一个条目从中间切成两半，
+    让模型误以为「数据本身到这儿就没了」。被裁剪时补明确标记，
+    模型和思考过程都能看出这是展示层裁剪、而非数据缺失。
+    """
+    if len(text) <= MAX_OBS_CHARS:
+        return text
+    head = text[:MAX_OBS_CHARS]
+    # 优先在换行处断开，其次在「；」处断开，都没有才硬切
+    cut = max(head.rfind("\n"), head.rfind("；"))
+    if cut > MAX_OBS_CHARS * 0.6:
+        head = head[:cut]
+    return (head
+            + f"…（本条共 {len(text)} 字，此处仅保留前 {len(head)} 字。"
+              "上述内容并未到结尾，请基于已给数据回答，"
+              "需要剩余部分时用更精确的查询再检索一次）")
+
+
 # ===== Agent 系统提示词 =====
 SYSTEM_PROMPT = """你是《逃离塔科夫》（Escape from Tarkov）的市场查询助手，帮玩家查物品价格、判断涨跌、比价出手。
 
@@ -50,6 +87,7 @@ class ReActAgent:
     def __init__(self):
         self.scratchpad = []   # [{"role": "thought/act/obs/done", "content": "..."}]
         self.state = "thinking"  # thinking | done
+        self._last_user_input = None  # 本轮用户输入，供解析失败重试时复用
 
     def _execute_tool(self, tool_name: str, args: dict) -> str:
         """执行工具并返回观察结果"""
@@ -66,7 +104,7 @@ class ReActAgent:
             return ""
         lines = []
         total = 0
-        # 从最新往前取，总字符数不超过 2500
+        # 从最新往前取，总字符数不超过 MAX_HISTORY_CHARS
         for entry in reversed(self.scratchpad):
             role = entry["role"]
             content = entry["content"]
@@ -75,10 +113,10 @@ class ReActAgent:
             elif role == "act":
                 line = f"ACT: {content}"
             elif role == "obs":
-                line = f"OBSERVATION: {content[:300]}"  # 观察结果截断
+                line = f"OBSERVATION: {_clip_observation(content)}"
             else:
                 continue
-            if total + len(line) > 2500:
+            if total + len(line) > MAX_HISTORY_CHARS:
                 break
             lines.insert(0, line)
             total += len(line)
@@ -98,7 +136,22 @@ class ReActAgent:
           {"type": "done", "reply": "..."}
           {"type": "error", "content": "..."}
         """
-        # 构建对话
+        # 调用 LLM（消息拼装统一放在 _ask_llm，重试路径也复用它）
+        self._last_user_input = user_input
+        try:
+            content = self._ask_llm(user_input=user_input)
+        except Exception as e:
+            return {"type": "error", "content": f"Agent 调用失败: {str(e)[:150]}"}
+
+        # 解析 LLM 输出
+        return self._parse_response(content)
+
+    def _ask_llm(self, user_input: str = None, extra_instruction: str = None) -> str:
+        """按当前历史向 LLM 要下一步输出（THOUGHT + ACT，或 DONE）。
+
+        user_input：本轮用户输入（仅第一步传，后续步骤靠 scratchpad 记忆）。
+        extra_instruction：附加在末尾的追问指令（例如解析失败后的重试提示）。
+        """
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
 
         # 添加历史记录（多轮记忆）
@@ -109,25 +162,24 @@ class ReActAgent:
         if user_input:
             messages.append({"role": "user", "content": f"用户最新输入: {user_input}"})
 
-        messages.append({"role": "user", "content": "请输出你的下一步 THOUGHT 和 ACT（或 DONE）："})
+        directive = extra_instruction or "请输出你的下一步 THOUGHT 和 ACT（或 DONE）："
+        messages.append({"role": "user", "content": directive})
 
-        # 调用 LLM
-        try:
-            resp = client.chat.completions.create(
-                model=MODEL,
-                messages=messages,
-                max_tokens=800,
-                extra_body={"thinking": {"type": "disabled"}},
-            )
-            content = resp.choices[0].message.content.strip()
-        except Exception as e:
-            return {"type": "error", "content": f"Agent 调用失败: {str(e)[:150]}"}
+        resp = client.chat.completions.create(
+            model=MODEL,
+            messages=messages,
+            max_tokens=LLM_MAX_TOKENS,
+            extra_body={"thinking": {"type": "disabled"}},
+        )
+        return resp.choices[0].message.content.strip()
 
-        # 解析 LLM 输出
-        return self._parse_response(content)
+    def _parse_response(self, content: str, allow_retry: bool = True) -> dict:
+        """解析 LLM 响应，提取 THOUGHT/ACT 或 DONE，并执行工具
 
-    def _parse_response(self, content: str) -> dict:
-        """解析 LLM 响应，提取 THOUGHT/ACT 或 DONE，并执行工具"""
+        allow_retry：既没解析出 ACT 也没解析出 DONE 时，允许再问模型一次。
+        模型偶尔只吐一段 THOUGHT 就停了（没给 ACT 也没给 DONE），
+        这时既不该把内部推理当成回复丢给用户，也不该就此结束整轮对话。
+        """
         thought_match = re.search(r'THOUGHT:\s*(.+?)(?=\nACT:|\nDONE:|$)', content, re.DOTALL)
         thought = thought_match.group(1).strip() if thought_match else ""
 
@@ -177,11 +229,23 @@ class ReActAgent:
             self.state = "done"
             return {"type": "done", "thought": thought, "reply": reply}
 
-        # 解析失败，把原始输出当最终回复
+        # 既没有 ACT 也没有 DONE：模型可能只吐了半截（常见于只输出一段 THOUGHT）
+        if allow_retry:
+            retry = self._ask_llm(user_input=self._last_user_input,
+                                  extra_instruction=RETRY_INSTRUCTION)
+            if retry:
+                # 再解析一次；这次不允许再重试，避免无限循环
+                return self._parse_response(retry, allow_retry=False)
+
+        # 重试后仍解析不出来，降级：把原文当回复，但必须剥掉内部 THOUGHT 标记，
+        # 否则模型的内心独白会原样出现在用户的聊天框里。
         if thought:
             self.scratchpad.append({"role": "thought", "content": thought})
         self.state = "done"
-        return {"type": "done", "thought": thought, "reply": content[:200]}
+        reply = re.sub(r'^\s*THOUGHT:\s*', '', content).strip()
+        if not reply:
+            reply = "抱歉，我没能给出有效回答，请重试或换个说法问一次。"
+        return {"type": "done", "thought": thought, "reply": reply[:200]}
 
     def _parse_simple_args(self, args_str: str) -> dict:
         """简易参数解析（JSON 解析失败时的后备）"""
@@ -201,3 +265,4 @@ class ReActAgent:
         """重置 Agent 状态（开启新会话）"""
         self.scratchpad = []
         self.state = "thinking"
+        self._last_user_input = None

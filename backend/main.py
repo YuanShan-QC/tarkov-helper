@@ -8,13 +8,25 @@ FastAPI 入口 —— 塔科夫市场查询助手
   POST /api/chat   对话（输入 message，返回最终回复 + 完整思考步骤）
   POST /api/reset  重置会话记忆
 """
+import asyncio
 import json
 import logging
 import os
+import sys
 import threading
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
+
+# ===== Windows 事件循环兜底（必须在事件循环创建前设置，import 期执行刚好）=====
+# Windows 默认的 ProactorEventLoop 在本机 accept() 会抛
+#   OSError: [WinError 10014] 系统检测到在一个调用中尝试使用指针参数时的无效指针地址
+# 导致监听套接字失效、页面完全打不开。uvicorn 只在 use_subprocess
+# （--reload/--workers）时才切 Selector，单进程启动会保留 Proactor，
+# 所以这里显式切换；无论用 run.py 还是 `python -m uvicorn main:app` 都安全。
+# 设 TARKOV_DISABLE_SELECTOR_LOOP=1 可临时关闭该兜底（仅用于诊断对比）。
+if sys.platform == "win32" and not os.getenv("TARKOV_DISABLE_SELECTOR_LOOP"):
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse

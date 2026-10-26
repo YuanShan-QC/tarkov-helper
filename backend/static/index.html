@@ -9,203 +9,283 @@
 <script src="/vendor/echarts.min.js" defer></script>
 <style>
   :root {
-    --bg: #0f1115;
-    --panel: #1a1d24;
-    --panel-2: #22262f;
-    --border: #2e3440;
-    --text: #e6e8ec;
-    --text-dim: #9aa0aa;
-    --accent: #c8a24a;
-    --green: #4caf50;
-    --red: #e05252;
-    --user-bubble: #2d5c8a;
-    --assistant-bubble: #262b35;
+    --blue: #409eff;
+    --blue-hover: #66b1ff;
+    --blue-bg: #ecf5ff;
+    --blue-dark: #337ecc;
+    --text: #303133;
+    --text-2: #606266;
+    --text-3: #909399;
+    --border: #dcdfe6;
+    --border-l: #ebeef5;
+    --page: #f5f7fa;
+    --green: #67c23a;
+    --red: #f56c6c;
+    --orange: #e6a23c;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
   body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, "Microsoft YaHei", "PingFang SC", sans-serif;
-    height: 100vh;
-    display: flex;
-    justify-content: center;
-  }
-  .app {
-    width: 100%;
-    max-width: 980px;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    background: var(--panel);
-    border-left: 1px solid var(--border);
-    border-right: 1px solid var(--border);
-  }
-  /* ===== 顶部 ===== */
-  .header {
-    padding: 14px 22px 0;
-    border-bottom: 1px solid var(--border);
-  }
-  .header .title-row { display: flex; align-items: center; gap: 10px; }
-  .header .dot { width: 10px; height: 10px; border-radius: 50%; background: #4caf50; box-shadow: 0 0 8px #4caf50; }
-  .mode-badge {
-    margin-left: auto; align-self: flex-start; margin-top: 4px;
-    font-size: 11px; color: var(--accent);
-    background: transparent;
-    border: 1px solid var(--accent); border-radius: 10px;
-    padding: 3px 12px; opacity: .9; white-space: nowrap;
-    cursor: pointer; transition: background .15s, opacity .15s;
-  }
-  .mode-badge:hover { background: rgba(200, 162, 74, .12); }
-  .mode-badge:disabled { opacity: .5; cursor: not-allowed; }
-  .header h1 { font-size: 17px; font-weight: 600; }
-  .header .sub { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
-  .tabs { display: flex; gap: 4px; margin-top: 12px; }
-  .tabs .tab {
-    background: transparent;
-    color: var(--text-dim);
-    border: none;
-    padding: 10px 16px;
+    font-family: -apple-system, "Microsoft YaHei", "PingFang SC", "Helvetica Neue", sans-serif;
     font-size: 14px;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    transition: color .15s;
+    color: var(--text);
+    background: #fff;
+    -webkit-font-smoothing: antialiased;
   }
-  .tabs .tab:hover { color: var(--text); }
-  .tabs .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
-  /* ===== 主体 ===== */
-  main { flex: 1; overflow: hidden; position: relative; }
-  .tab-panel { display: none; height: 100%; flex-direction: column; }
-  .tab-panel.active { display: flex; }
-  /* ===== 搜索栏 ===== */
-  .search-bar { display: flex; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
-  .search-bar input {
-    flex: 1; background: var(--panel-2); border: 1px solid var(--border);
-    border-radius: 8px; padding: 10px 14px; color: var(--text); font-size: 14px; outline: none;
+  a { color: var(--blue); text-decoration: none; }
+  .sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+  /* ================= 顶部导航 ================= */
+  .site-header {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; gap: 26px;
+    height: 62px; padding: 0 28px;
+    background: #fff; border-bottom: 1px solid var(--border-l);
   }
-  .search-bar input:focus { border-color: var(--accent); }
-  .search-bar button {
-    background: var(--accent); color: #1a1d24; border: none; border-radius: 8px;
-    padding: 0 18px; font-size: 14px; font-weight: 600; cursor: pointer;
+  .brand { display: flex; flex-direction: column; justify-content: center; gap: 2px; line-height: 1; user-select: none; }
+  .brand .b1 { font-size: 9px; font-weight: 700; letter-spacing: .26em; color: #a0a4ab; }
+  .brand .b2 {
+    font-size: 22px; font-weight: 800; letter-spacing: .16em; color: #2b3038;
+    text-shadow: 0 1px 0 #d8dbe0;
   }
-  .search-bar button:hover { filter: brightness(1.1); }
-  /* ===== 双栏布局（列表 + 详情） ===== */
-  .split { flex: 1; display: flex; overflow: hidden; }
-  .col-list { width: 300px; flex-shrink: 0; overflow-y: auto; border-right: 1px solid var(--border); }
-  .col-detail { flex: 1; overflow-y: auto; padding: 16px 18px; }
-  .list-item {
-    padding: 12px 16px; cursor: pointer; border-bottom: 1px solid var(--border);
-    transition: background .12s;
+  .main-nav { display: flex; gap: 4px; height: 100%; }
+  .main-nav a {
+    position: relative; display: flex; align-items: center; height: 100%;
+    padding: 0 14px; font-size: 15px; color: var(--text); cursor: pointer;
+    border-bottom: 2px solid transparent; transition: color .15s;
+    white-space: nowrap;
   }
-  .list-item:hover { background: var(--panel-2); }
-  .list-item.active { background: var(--panel-2); border-left: 3px solid var(--accent); }
-  .list-item .name { font-size: 14px; }
-  .list-item .meta { font-size: 12px; color: var(--text-dim); margin-top: 3px; }
-  .empty-tip { padding: 24px; text-align: center; color: var(--text-dim); font-size: 13px; }
-  /* ===== 分组收束列表（物品按分类 / 任务按商人） ===== */
-  .group { border-bottom: 1px solid var(--border); }
-  .group-head {
-    display: flex; align-items: center; gap: 8px;
-    padding: 9px 14px; cursor: pointer; user-select: none;
-    background: var(--panel-2);
-    transition: background .12s;
+  .main-nav a:hover { color: var(--blue); }
+  .main-nav a.active { color: var(--blue); border-bottom-color: var(--blue); }
+  .header-right { margin-left: auto; display: flex; align-items: center; gap: 14px; font-size: 13px; color: var(--text-3); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #c0c4cc; display: inline-block; }
+  .mode-badge {
+    font-size: 12px; color: var(--blue); background: var(--blue-bg);
+    border: 1px solid #c6e2ff; border-radius: 3px; padding: 4px 12px;
+    cursor: pointer; transition: background .15s, color .15s;
   }
-  .group-head:hover { background: #262b35; }
-  .group-arrow { color: var(--accent); font-size: 12px; width: 14px; text-align: center; }
-  .group-name { font-size: 13px; font-weight: 600; }
-  .group-count { font-size: 11px; color: var(--text-dim); background: #2d3a4a; border-radius: 8px; padding: 1px 8px; }
-  .group-body { max-height: 45vh; overflow-y: auto; }
-  .group-toolbar {
-    padding: 8px 14px; font-size: 12px; color: var(--text-dim);
+  .mode-badge:hover { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .mode-badge:disabled { opacity: .6; cursor: not-allowed; }
+
+  /* ================= 二级导航 ================= */
+  .subnav {
+    display: flex; align-items: center; gap: 2px;
+    height: 46px; padding: 0 28px; background: var(--page);
+    border-bottom: 1px solid var(--border-l); overflow-x: auto; overflow-y: hidden;
+  }
+  .subnav::-webkit-scrollbar { height: 0; }
+  .subnav a {
+    flex: 0 0 auto; display: flex; align-items: center; height: 46px;
+    padding: 0 13px; font-size: 13.5px; color: var(--text-2); cursor: pointer;
+    border-bottom: 2px solid transparent; white-space: nowrap;
+  }
+  .subnav a:hover { color: var(--blue); }
+  .subnav a.active { color: var(--blue); border-bottom-color: var(--blue); }
+  .subnav .sep { width: 1px; height: 14px; background: var(--border); margin: 0 8px; flex: 0 0 auto; }
+  .subnav span { white-space: nowrap; }
+
+  /* ================= 页面容器 ================= */
+  .page { display: none; }
+  .page.active { display: block; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
+
+  /* ================= 首页：图标宫格 ================= */
+  .grid-wrap { max-width: 1180px; margin: 0 auto; padding: 26px 28px 40px; }
+  .grid-title { font-size: 15px; font-weight: 600; color: var(--text); margin: 6px 0 14px; }
+  .grid-title small { font-weight: 400; color: var(--text-3); margin-left: 8px; font-size: 12.5px; }
+  .tile-grid { display: grid; grid-template-columns: repeat(5, 1fr); }
+  .tile {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    padding: 24px 8px; background: transparent; border: none; cursor: pointer;
+    color: var(--text); font-size: 14px; border-radius: 4px; transition: background .15s;
+  }
+  .tile svg { width: 50px; height: 50px; fill: var(--blue); transition: fill .15s; }
+  .tile:hover { background: #f7f8fa; }
+  .tile:hover svg { fill: var(--blue-hover); }
+  .tile:hover span { color: var(--blue-dark); }
+  .home-tip { margin-top: 26px; padding: 16px 18px; background: var(--page); border-radius: 4px; color: var(--text-2); font-size: 13px; line-height: 1.9; }
+  .home-tip b { color: var(--text); }
+
+  /* ================= 列表 + 详情 ================= */
+  .pane { display: flex; flex-direction: column; height: calc(100vh - 108px); }
+  .pane-bar {
     display: flex; align-items: center; gap: 10px;
-    border-bottom: 1px solid var(--border);
+    padding: 12px 28px; border-bottom: 1px solid var(--border-l); background: #fff;
   }
-  .group-toolbar a { color: var(--accent); cursor: pointer; }
-  .group-toolbar a:hover { text-decoration: underline; }
-  .btn-ghost {
-    background: transparent; color: var(--text-dim);
-    border: 1px solid var(--border); border-radius: 8px;
-    padding: 0 14px; font-size: 13px; cursor: pointer; transition: all .15s;
+  .pane-bar .spacer { flex: 1; }
+  .input {
+    height: 34px; padding: 0 12px; font-size: 14px; color: var(--text);
+    background: #fff; border: 1px solid var(--border); border-radius: 4px; outline: none;
+    transition: border-color .15s, box-shadow .15s;
   }
-  .btn-ghost:hover { color: var(--accent); border-color: var(--accent); }
-  /* ===== 详情卡片 ===== */
-  .card { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
-  .card h3 { font-size: 16px; margin-bottom: 10px; color: var(--accent); }
-  .card .kv { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 13px; }
-  .card .kv span b { color: var(--text); font-weight: 600; }
-  .card .kv span { color: var(--text-dim); }
-  .up { color: var(--red); font-weight: 600; }
-  .down { color: var(--green); font-weight: 600; }
-  .flat { color: var(--text-dim); }
-  /* ===== 目标/材料列表 ===== */
-  .obj { padding: 9px 0; border-bottom: 1px dashed var(--border); font-size: 13px; line-height: 1.6; }
+  .input:focus { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(64,158,255,.12); }
+  .pane-bar .input { flex: 1; max-width: 460px; }
+  .btn {
+    height: 34px; padding: 0 16px; font-size: 14px; cursor: pointer;
+    background: var(--blue); color: #fff; border: 1px solid var(--blue); border-radius: 4px;
+    transition: background .15s, border-color .15s;
+  }
+  .btn:hover { background: var(--blue-hover); border-color: var(--blue-hover); }
+  .btn.plain { background: #fff; color: var(--text-2); border-color: var(--border); }
+  .btn.plain:hover { color: var(--blue); border-color: #c6e2ff; background: var(--blue-bg); }
+
+  .split { flex: 1; display: flex; overflow: hidden; }
+  .col-list { width: 340px; flex-shrink: 0; overflow-y: auto; border-right: 1px solid var(--border-l); background: #fff; }
+  .col-detail { flex: 1; overflow-y: auto; padding: 20px 28px 40px; background: #fff; }
+
+  .group { border-bottom: 1px solid var(--border-l); }
+  .group-head {
+    display: flex; align-items: center; gap: 8px; padding: 10px 16px;
+    background: #fafafa; cursor: pointer; user-select: none;
+  }
+  .group-head:hover { background: #f2f4f7; }
+  .group-arrow { width: 12px; color: var(--blue); font-size: 11px; }
+  .group-name { font-size: 13.5px; font-weight: 600; color: var(--text); }
+  .group-count {
+    margin-left: auto; font-size: 11.5px; color: var(--text-3);
+    background: #eef0f3; border-radius: 9px; padding: 1px 8px;
+  }
+  .group-body { max-height: 46vh; overflow-y: auto; }
+  .group-toolbar {
+    display: flex; align-items: center; gap: 12px; padding: 9px 16px;
+    font-size: 12.5px; color: var(--text-3); border-bottom: 1px solid var(--border-l);
+  }
+  .group-toolbar a { cursor: pointer; }
+  .group-toolbar a:hover { color: var(--blue); }
+
+  .list-item {
+    padding: 10px 16px; cursor: pointer; border-bottom: 1px solid #f4f5f7;
+    border-left: 2px solid transparent; transition: background .12s;
+  }
+  .list-item:hover { background: var(--page); }
+  .list-item.active { background: var(--blue-bg); border-left-color: var(--blue); }
+  .list-item .name { font-size: 13.5px; color: var(--text); }
+  .list-item.active .name { color: var(--blue-dark); font-weight: 600; }
+  .list-item .meta { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+
+  .empty-tip { padding: 36px 20px; text-align: center; color: var(--text-3); font-size: 13px; line-height: 1.9; }
+
+  /* ================= 详情卡片 ================= */
+  .card { border: 1px solid var(--border-l); border-radius: 4px; padding: 16px 18px; margin-bottom: 14px; background: #fff; }
+  .card h3 {
+    font-size: 16px; font-weight: 600; color: var(--text);
+    margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border-l);
+  }
+  .card .kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px 18px; font-size: 13px; color: var(--text-3); }
+  .card .kv b { display: block; margin-top: 2px; font-size: 14.5px; font-weight: 600; color: var(--text); }
+  .card .kv b.up { color: var(--red); }
+  .card .kv b.down { color: var(--green); }
+  .card .kv b.flat { color: var(--text-2); }
+  .req-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .req {
+    font-size: 12.5px; color: var(--text-2); background: var(--page);
+    border: 1px solid var(--border-l); border-radius: 3px; padding: 3px 10px;
+  }
+  .obj { display: flex; align-items: flex-start; gap: 10px; padding: 7px 0; font-size: 13.5px; color: var(--text); border-bottom: 1px dashed #f0f1f4; }
   .obj:last-child { border-bottom: none; }
   .obj .tag {
-    display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 4px;
-    background: #2d3a4a; color: #7fb3e0; margin-right: 6px; vertical-align: 1px;
+    flex: 0 0 auto; font-size: 12px; color: var(--blue); background: var(--blue-bg);
+    border-radius: 3px; padding: 1px 8px; margin-top: 1px;
   }
-  .req-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-  .req {
-    font-size: 12px; background: #2d3a4a; color: #d6c08a; padding: 3px 9px;
-    border-radius: 5px; white-space: nowrap;
-  }
-  /* ===== 藏身处子 tab ===== */
-  .sub-tabs { display: flex; gap: 4px; padding: 12px 18px 0; border-bottom: 1px solid var(--border); }
-  .sub-tabs button {
-    background: transparent; color: var(--text-dim); border: none; padding: 8px 14px;
-    font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent;
-  }
-  .sub-tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
-  .content-scroll { flex: 1; overflow-y: auto; padding: 14px 18px; }
-  /* ===== 聊天栏 ===== */
-  .messages { flex: 1; overflow-y: auto; padding: 20px 22px; display: flex; flex-direction: column; gap: 16px; }
-  .msg { display: flex; flex-direction: column; max-width: 85%; }
-  .msg.user { align-self: flex-end; align-items: flex-end; }
-  .msg.assistant { align-self: flex-start; align-items: flex-start; }
-  .bubble { padding: 12px 16px; border-radius: 14px; line-height: 1.6; font-size: 14px; white-space: pre-wrap; word-break: break-word; }
-  .msg.user .bubble { background: var(--user-bubble); border-bottom-right-radius: 4px; }
-  .msg.assistant .bubble { background: var(--assistant-bubble); border-bottom-left-radius: 4px; }
-  .msg .label { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
-  .trace { margin-top: 8px; font-size: 12px; color: var(--text-dim); width: 100%; }
-  .trace summary { cursor: pointer; color: var(--accent); font-size: 12px; user-select: none; }
-  .trace .step { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-top: 8px; }
-  .trace .step .tool { color: #7fb3e0; font-weight: 600; font-family: monospace; font-size: 12px; }
-  .trace .step .obs { margin-top: 4px; white-space: pre-wrap; font-size: 12px; color: var(--text-dim); }
-  .input-area { padding: 14px 18px; border-top: 1px solid var(--border); display: flex; gap: 10px; }
-  .input-area input {
-    flex: 1; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px;
-    padding: 12px 16px; color: var(--text); font-size: 14px; outline: none;
-  }
-  .input-area input:focus { border-color: var(--accent); }
-  .input-area button {
-    background: var(--accent); color: #1a1d24; border: none; border-radius: 10px;
-    padding: 0 22px; font-size: 14px; font-weight: 600; cursor: pointer;
-  }
-  .input-area button:disabled { opacity: 0.5; cursor: not-allowed; }
-  .hint { text-align: center; color: var(--text-dim); font-size: 12px; padding: 10px; }
-  .chart-box { height: 260px; margin-top: 6px; }
-  .seg { display: inline-flex; gap: 4px; margin-bottom: 8px; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; margin-bottom: 12px; }
   .seg button {
-    background: transparent; color: var(--text-dim); border: 1px solid var(--border);
-    border-radius: 6px; padding: 4px 12px; font-size: 12px; cursor: pointer;
+    padding: 6px 18px; font-size: 13px; background: #fff; color: var(--text-2);
+    border: none; border-right: 1px solid var(--border); cursor: pointer;
   }
-  .seg button.active { color: var(--accent); border-color: var(--accent); }
-  /* ===== 后端启动等待层 ===== */
+  .seg button:last-child { border-right: none; }
+  .seg button:hover { color: var(--blue); }
+  .seg button.active { background: var(--blue); color: #fff; }
+  .chart-box { width: 100%; height: 300px; }
+
+  /* ================= 藏身处 ================= */
+  .hideout-wrap { max-width: 1180px; margin: 0 auto; padding: 20px 28px 40px; }
+  .hideout-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .hideout-grid .card { margin-bottom: 0; }
+
+  /* ================= 智能助手 ================= */
+  .chat-pane { display: flex; flex-direction: column; height: calc(100vh - 108px); }
+  .messages { flex: 1; overflow-y: auto; padding: 22px 0 10px; background: var(--page); }
+  .messages-inner { max-width: 900px; margin: 0 auto; padding: 0 28px; }
+  .msg { margin-bottom: 18px; }
+  .msg .label { font-size: 12px; color: var(--text-3); margin-bottom: 6px; }
+  .msg .bubble {
+    display: inline-block; max-width: 92%; padding: 11px 15px; font-size: 13.5px; line-height: 1.8;
+    border-radius: 4px; white-space: pre-wrap; word-break: break-word;
+  }
+  .msg.user { text-align: right; }
+  .msg.user .bubble { background: var(--blue); color: #fff; text-align: left; }
+  .msg.assistant .bubble { background: #fff; border: 1px solid var(--border-l); color: var(--text); }
+  .trace { margin-top: 8px; max-width: 92%; }
+  .trace summary {
+    font-size: 12.5px; color: var(--blue); cursor: pointer; padding: 4px 0; list-style: none;
+  }
+  .trace summary::-webkit-details-marker { display: none; }
+  .trace summary::before { content: "▸ "; }
+  .trace[open] summary::before { content: "▾ "; }
+  .trace .step { border-left: 2px solid #d9ecff; padding: 4px 0 10px 12px; margin-left: 3px; }
+  .trace .tool { font-size: 12.5px; color: var(--blue-dark); font-weight: 600; margin-bottom: 4px; }
+  .trace .obs { font-size: 12px; color: var(--text-3); white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow-y: auto; }
+  .chat-input-bar { padding: 14px 28px; background: #fff; border-top: 1px solid var(--border-l); }
+  .chat-bar-inner { display: flex; gap: 10px; max-width: 900px; margin: 0 auto; }
+  .chat-input-bar .input { flex: 1; }
+  .chat-hint { padding: 0 28px 10px; background: #fff; font-size: 12px; color: var(--text-3); }
+  .chat-hint-inner { display: block; }
+
+  /* ================= 启动等待层 ================= */
   #boot-overlay {
-    position: fixed; inset: 0; z-index: 999;
-    background: var(--bg);
+    position: fixed; inset: 0; z-index: 999; background: #fff;
     display: flex; align-items: center; justify-content: center;
-    transition: opacity .4s ease;
+    transition: opacity .4s;
   }
   #boot-overlay.fade-out { opacity: 0; pointer-events: none; }
   .boot-card { text-align: center; }
   .boot-spinner {
-    width: 44px; height: 44px; margin: 0 auto 18px;
-    border: 4px solid var(--border); border-top-color: var(--accent);
-    border-radius: 50%; animation: spin 1s linear infinite;
+    width: 34px; height: 34px; margin: 0 auto 18px;
+    border: 3px solid #e4e7ed; border-top-color: var(--blue); border-radius: 50%;
+    animation: spin .8s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .boot-title { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
-  .boot-sub { font-size: 13px; color: var(--text-dim); }
+  .boot-title { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+  .boot-sub { font-size: 13px; color: var(--text-3); max-width: 420px; }
+
+  /* ================= 响应式 ================= */
+  @media (max-width: 1024px) {
+    .tile-grid { grid-template-columns: repeat(4, 1fr); }
+    .col-list { width: 290px; }
+  }
+  @media (max-width: 820px) {
+    /* 小屏：顶栏改两行——第一行 logo + 模式，第二行可横向滑动的一级导航 */
+    .site-header {
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "brand right" "nav nav";
+      height: auto; padding: 8px 12px 0; gap: 4px 8px; overflow: visible;
+    }
+    .brand { grid-area: brand; min-width: 0; }
+    .brand .b2 { font-size: 16px; letter-spacing: .08em; }
+    .brand .b1 { font-size: 8px; letter-spacing: .16em; }
+    .header-right { grid-area: right; margin-left: 0; gap: 8px; flex: 0 0 auto; }
+    .mode-badge { padding: 4px 9px; font-size: 12px; }
+    .main-nav { grid-area: nav; width: 100%; min-width: 0; height: 38px; gap: 0; overflow-x: auto; margin: 0 -12px; padding: 0 12px; }
+    .main-nav::-webkit-scrollbar { height: 0; }
+    .main-nav a { padding: 0 10px; font-size: 13.5px; }
+    .subnav { padding: 0 12px; height: 42px; }
+    .subnav a { height: 42px; padding: 0 10px; font-size: 13px; }
+    .grid-wrap, .wrap, .hideout-wrap { padding-left: 14px; padding-right: 14px; }
+    .tile-grid { grid-template-columns: repeat(3, 1fr); }
+    .tile svg { width: 42px; height: 42px; }
+    .pane, .chat-pane { height: auto; min-height: calc(100vh - 140px); }
+    .pane-bar { padding: 10px 14px; flex-wrap: wrap; gap: 8px; }
+    .pane-bar .input { flex: 1 1 100%; max-width: none; }
+    .pane-bar .spacer { display: none; }
+    .split { flex-direction: column; overflow: visible; }
+    .col-list { width: 100%; max-height: 46vh; border-right: none; border-bottom: 1px solid var(--border-l); }
+    .col-detail { padding: 16px 14px 40px; }
+    .messages-inner { padding: 0 14px; }
+    .chat-input-bar { padding: 12px 14px; }
+    .chat-hint { padding: 0 14px 10px; }
+  }
+  @media (max-width: 520px) {
+    .tile-grid { grid-template-columns: repeat(2, 1fr); }
+  }
 </style>
 </head>
 <body>
@@ -217,86 +297,144 @@
     <div class="boot-sub" id="boot-status">正在连接后端服务，首次启动可能需要 10~60 秒</div>
   </div>
 </div>
-<div class="app">
-  <div class="header">
-    <div class="title-row">
-      <div class="dot"></div>
-      <div>
-        <h1>塔科夫助手</h1>
-        <div class="sub">价格行情 · 任务查询 · 藏身处配方 · 智能问答</div>
-      </div>
-      <button class="mode-badge" id="mode-badge" onclick="toggleMode()" title="点击切换价格模式（PvP ⇄ PvE）" disabled>连接中</button>
-    </div>
-    <div class="tabs">
-      <button class="tab active" data-tab="price" onclick="switchTab('price')">价格行情</button>
-      <button class="tab" data-tab="task" onclick="switchTab('task')">任务查询</button>
-      <button class="tab" data-tab="hideout" onclick="switchTab('hideout')">藏身处配方</button>
-      <button class="tab" data-tab="chat" onclick="switchTab('chat')">智能助手</button>
-    </div>
-  </div>
 
-  <main>
-    <!-- ===== 价格行情 ===== -->
-    <section class="tab-panel active" id="panel-price">
-      <div class="search-bar">
-        <input id="price-search" placeholder="搜索物品，如：显卡、LEDX、比特币、金链" autocomplete="off">
-        <button onclick="searchItems()">搜索</button>
-        <button class="btn-ghost" onclick="showAllItems()">全部</button>
+<!-- 图标库：单色剪影，颜色由 fill 继承（--blue） -->
+<svg class="sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <symbol id="ic-home" viewBox="0 0 24 24"><path d="M12 2.3 2.5 10.2v1.6h2.1V21h5.2v-6.1h4.4V21h5.2v-9.2h2.1v-1.6z"/></symbol>
+  <symbol id="ic-price" viewBox="0 0 24 24"><path d="M3.2 20.2h3.6V11.4H3.2zm5.6 0h3.6V6.4H8.8zm5.6 0h3.6V3.4h-3.6z"/></symbol>
+  <symbol id="ic-task" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M9 2.4h6a1 1 0 0 1 1 1v1.2h1.7A1.9 1.9 0 0 1 19.6 6.5v13.9a1.9 1.9 0 0 1-1.9 1.9H6.3a1.9 1.9 0 0 1-1.9-1.9V6.5a1.9 1.9 0 0 1 1.9-1.9H8V3.4a1 1 0 0 1 1-1zm.3 3.6h5.4V5H9.3zM8 9.3h8v1.5H8zm0 3.4h8v1.5H8zm0 3.4h5.4v1.5H8z"/></symbol>
+  <symbol id="ic-hideout" viewBox="0 0 24 24"><path fill-rule="evenodd" d="m12 2.2 2.1 2.6 3.3-.8.8 3.3 2.9 2.1-2 2.6 2 2.6-2.9 2.1-.8 3.3-3.3-.8L12 21.8l-2.1-2.6-3.3.8-.8-3.3L2.9 14.6l2-2.6-2-2.6 2.9-2.1.8-3.3 3.3.8zm0 6.4a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8z"/></symbol>
+  <symbol id="ic-chat" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M4.8 3.4h14.4a2.4 2.4 0 0 1 2.4 2.4v8.4a2.4 2.4 0 0 1-2.4 2.4H9.8L4.6 21.2v-4.6h-.4A1.6 1.6 0 0 1 2.6 15V5.8a2.4 2.4 0 0 1 2.2-2.4zm2.6 4.8a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6zm4.6 0a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6zm4.6 0a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6z"/></symbol>
+  <symbol id="ic-rifle" viewBox="0 0 24 24"><path d="M1.8 13.6h2.6l1.6-1.8h4.2l1.2-1.4h8.4l1.4 1.4h1.6v2.2h-3.2l-1.2 2.6h-3.2l.6-2.6h-3l-1.2 2.6H8.6l.8-3.4H5.2l-1 1.6H1.8z"/></symbol>
+  <symbol id="ic-ammo" viewBox="0 0 24 24"><path d="M12 2.2c1.95 2.1 3.05 4.5 3.05 7.05v4.55h-6.1V9.25c0-2.55 1.1-4.95 3.05-7.05zM9.6 15.5h4.8V21H9.6z"/></symbol>
+  <symbol id="ic-vest" viewBox="0 0 24 24"><path fill-rule="evenodd" d="m7.2 3.5 4.8 2.3 4.8-2.3 2.2 5.1V20a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8.6zM9 8.4h1.6v7.4H9zm4.4 0H15v7.4h-1.6z"/></symbol>
+  <symbol id="ic-helmet" viewBox="0 0 24 24"><path d="M12 3.1c-4.6 0-7.5 3.4-7.5 7.9V16h15V11c0-4.5-2.9-7.9-7.5-7.9zM3 17.5h18V20H3z"/></symbol>
+  <symbol id="ic-med" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M5.2 4.2h13.6a1 1 0 0 1 1 1v13.6a1 1 0 0 1-1 1H5.2a1 1 0 0 1-1-1V5.2a1 1 0 0 1 1-1zm5.7 3.2h2.2v3.5h3.5v2.2h-3.5v3.5h-2.2v-3.5H7.4v-2.2h3.5z"/></symbol>
+  <symbol id="ic-key" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M8.3 2.5a4.7 4.7 0 1 1 0 9.4 4.7 4.7 0 0 1 0-9.4zm0 2.9a1.8 1.8 0 1 0 0 3.6 1.8 1.8 0 0 0 0-3.6zM11.6 11.6l8.9 8.9-1.9 1.9-1.7-1.7-1.4 1.4-1.9-1.9 1.4-1.4-1.1-1.1 1.4-1.4-1.2-1.2z"/></symbol>
+  <symbol id="ic-grenade" viewBox="0 0 24 24"><path d="M9.1 3.3h1.7v2.2h2.4V3.3h1.7v2.2h1.4l-.5 2.4a5.9 5.9 0 0 1 2.2 4.6V21H6v-8.5a5.9 5.9 0 0 1 2.2-4.6l-.5-2.4h1.4z"/></symbol>
+  <symbol id="ic-box" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M3.6 8.4 12 3.6l8.4 4.8V20a1 1 0 0 1-1 1H4.6a1 1 0 0 1-1-1zM3.6 11.3h16.8v1.9H3.6z"/></symbol>
+  <symbol id="ic-bottle" viewBox="0 0 24 24"><path d="M10.1 2.4h3.8v3.5l1.6 2.6V21H8.5V8.5l1.6-2.6z"/></symbol>
+  <symbol id="ic-sack" viewBox="0 0 24 24"><path d="M9.5 6.1a2.5 2.5 0 0 1 5 0v3.3h1.2L17.3 21H6.7L8.3 9.4h1.2z"/></symbol>
+  <symbol id="ic-wrench" viewBox="0 0 24 24"><path d="M16.4 2.5a4.9 4.9 0 0 0-4.7 6.2L2.5 17.9l3.1 3.1 9.2-9.2a4.9 4.9 0 0 0 6.2-4.7l-3 3-2.6-1.4-1.4-2.6z"/></symbol>
+  <symbol id="ic-scrap" viewBox="0 0 24 24"><path d="M6.9 4.9h3.4l1 1.7-1 1.7v1.5H6.9v-1.5l-1-1.7 1-1.7zm7.3 6.1h3.4l1 1.7-1 1.7v1.5h-3.4v-1.5l-1-1.7 1-1.7zM6.6 15.2h3.4l1 1.7-1 1.6v1.4H6.6v-1.4l-1-1.6 1-1.7z"/></symbol>
+  <symbol id="ic-dots" viewBox="0 0 24 24"><path d="M4.3 10.1h4.3v4.3H4.3zm5.6 0h4.3v4.3h-4.3zm5.6 0h4.3v4.3h-4.3z"/></symbol>
+</svg>
+
+<header class="site-header">
+  <div class="brand" data-act="page:home" role="button" tabindex="0">
+    <span class="b1">ESCAPE FROM</span>
+    <span class="b2">TARKOV</span>
+  </div>
+  <nav class="main-nav" id="main-nav">
+    <a data-act="page:home" data-page="home">网站首页</a>
+    <a data-act="page:price" data-page="price">价格行情</a>
+    <a data-act="page:task" data-page="task">任务查询</a>
+    <a data-act="page:hideout" data-page="hideout">藏身处配方</a>
+    <a data-act="page:chat" data-page="chat">智能助手</a>
+  </nav>
+  <div class="header-right">
+    <span><span class="dot" id="status-dot"></span></span>
+    <button class="mode-badge" id="mode-badge" data-act="mode" title="点击切换价格模式（PvP ⇄ PvE）" disabled>连接中…</button>
+  </div>
+</header>
+
+<div class="subnav" id="subnav"></div>
+
+<main>
+  <!-- ===== 网站首页 ===== -->
+  <section class="page active" id="page-home">
+    <div class="grid-wrap">
+      <div class="grid-title">功能入口 <small>收录本地数据库中的全部现有功能与物品分类</small></div>
+      <div class="tile-grid" id="home-modules">
+        <button class="tile" data-act="page:price"><svg><use href="#ic-price"/></svg><span>价格行情</span></button>
+        <button class="tile" data-act="page:task"><svg><use href="#ic-task"/></svg><span>任务查询</span></button>
+        <button class="tile" data-act="page:hideout"><svg><use href="#ic-hideout"/></svg><span>藏身处配方</span></button>
+        <button class="tile" data-act="page:chat"><svg><use href="#ic-chat"/></svg><span>智能助手</span></button>
+      </div>
+      <div class="grid-title" style="margin-top:30px">物品分类 <small>直接进入该分类的行情列表</small></div>
+      <div class="tile-grid" id="home-cats">
+        <div class="empty-tip" style="grid-column:1/-1">加载分类中…</div>
+      </div>
+      <div class="home-tip">
+        <b>数据来源</b>：tarkov.dev 公开 API（物品、价格、任务、藏身处配方），价格历史自动回补到本地 SQLite。
+        <br><b>快捷入口</b>：右上角可切换 <b>PvP / PvE</b> 两套独立经济；物品详情支持 7 / 30 / 90 天趋势图。
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 价格行情 ===== -->
+  <section class="page" id="page-price">
+    <div class="pane">
+      <div class="pane-bar">
+        <input class="input" id="price-search" placeholder="搜索物品，如：显卡、LEDX、比特币、金链" autocomplete="off">
+        <button class="btn" data-act="price:search">搜索</button>
+        <button class="btn plain" data-act="price:all">全部</button>
+        <span class="spacer"></span>
+        <span style="font-size:12.5px;color:var(--text-3)" id="price-count"></span>
       </div>
       <div class="split">
         <div class="col-list" id="price-list"><div class="empty-tip">输入关键词搜索物品</div></div>
         <div class="col-detail" id="price-detail"><div class="empty-tip">点击左侧物品查看价格与趋势</div></div>
       </div>
-    </section>
+    </div>
+  </section>
 
-    <!-- ===== 任务查询 ===== -->
-    <section class="tab-panel" id="panel-task">
-      <div class="search-bar">
-        <input id="task-search" placeholder="搜索任务，如：私人诊所、制裁、挖矿" autocomplete="off">
-        <button onclick="searchTasks()">搜索</button>
-        <button class="btn-ghost" onclick="showAllTasks()">全部</button>
+  <!-- ===== 任务查询 ===== -->
+  <section class="page" id="page-task">
+    <div class="pane">
+      <div class="pane-bar">
+        <input class="input" id="task-search" placeholder="搜索任务，如：私人诊所、制裁、挖矿" autocomplete="off">
+        <button class="btn" data-act="task:search">搜索</button>
+        <button class="btn plain" data-act="task:all">全部</button>
+        <span class="spacer"></span>
+        <span style="font-size:12.5px;color:var(--text-3)" id="task-count"></span>
       </div>
       <div class="split">
         <div class="col-list" id="task-list"><div class="empty-tip">默认显示全部任务，输入关键词可搜索过滤</div></div>
         <div class="col-detail" id="task-detail"><div class="empty-tip">点击左侧任务查看任务内容</div></div>
       </div>
-    </section>
+    </div>
+  </section>
 
-    <!-- ===== 藏身处配方 ===== -->
-    <section class="tab-panel" id="panel-hideout">
-      <div class="sub-tabs">
-        <button class="active" data-sub="crafts" onclick="switchSubTab('crafts')">制造配方</button>
-        <button data-sub="barters" onclick="switchSubTab('barters')">以物换物</button>
-        <button data-sub="stations" onclick="switchSubTab('stations')">工作站升级</button>
-      </div>
-      <div class="content-scroll" id="hideout-content"><div class="empty-tip">加载中…</div></div>
-    </section>
+  <!-- ===== 藏身处配方 ===== -->
+  <section class="page" id="page-hideout">
+    <div class="hideout-wrap" id="hideout-content"><div class="empty-tip">加载中…</div></div>
+  </section>
 
-    <!-- ===== 智能助手 ===== -->
-    <section class="tab-panel" id="panel-chat">
+  <!-- ===== 智能助手 ===== -->
+  <section class="page" id="page-chat">
+    <div class="chat-pane">
       <div class="messages" id="messages">
-        <div class="msg assistant">
-          <div class="label">助手</div>
-          <div class="bubble">你好！我是智能问答助手，适合查价格走势、比价、任务需求这类复杂问题。<br><br>试试问我：<br>· 显卡最近 30 天走势<br>· 哪些任务需要 LEDX<br>· 捡了个金链，卖商人还是挂跳蚤</div>
+        <div class="messages-inner">
+          <div class="msg assistant">
+            <div class="label">助手</div>
+            <div class="bubble">你好！我是智能问答助手，适合查价格走势、比价、任务需求这类复杂问题。试试问我：
+· 显卡最近 30 天走势
+· 哪些任务需要 LEDX
+· 捡了个金链，卖商人还是挂跳蚤</div>
+          </div>
         </div>
       </div>
-      <div class="input-area">
-        <input id="chat-input" placeholder="问点什么，比如：显卡卖给谁划算" autocomplete="off">
-        <button id="send" onclick="sendMessage()">发送</button>
+      <div class="chat-input-bar">
+        <div class="chat-bar-inner">
+          <input class="input" id="chat-input" placeholder="问点什么，比如：显卡卖给谁划算" autocomplete="off">
+          <button class="btn" id="send">发送</button>
+        </div>
       </div>
-      <div class="hint">按 Enter 发送 · 点击「查看思考过程」可看 Agent 的工具调用轨迹</div>
-    </section>
-  </main>
-</div>
+      <div class="chat-hint"><div class="chat-bar-inner chat-hint-inner">按 Enter 发送 · 点击「查看思考过程」可看 Agent 的工具调用轨迹</div></div>
+    </div>
+  </section>
+</main>
 
 <script>
-/* ================= 后端就绪检测 =================
-   开机/首次启动时后端可能还在加载数据，此时页面先显示等待层，
-   轮询 /api/health 直到后端就绪再淡出，全程无需手动刷新。 */
+/* ================= 后端就绪检测 ================= */
 const bootOverlay = document.getElementById('boot-overlay');
 const bootStatus = document.getElementById('boot-status');
 let backendReady = false;
 const backendWaiters = [];
+let currentMode = null;
+let currentPage = 'home';
+
 function onBackendReady(fn) { if (backendReady) fn(); else backendWaiters.push(fn); }
 
 async function checkHealth() {
@@ -307,12 +445,9 @@ async function checkHealth() {
   } catch (e) { return null; }
 }
 
-let currentMode = null; // 当前价格模式（pvp / pve），后端就绪后由 /api/health 填充
-
 (async function waitBackend() {
-  const dot = document.querySelector('.header .dot');
+  const dot = document.getElementById('status-dot');
   const badge = document.getElementById('mode-badge');
-  if (dot) dot.style.background = '#c8a24a'; // 未就绪：琥珀色
   const t0 = Date.now();
   let health = null;
   for (let i = 0; !health; i++) {
@@ -325,18 +460,157 @@ let currentMode = null; // 当前价格模式（pvp / pve），后端就绪后�
     }
     await new Promise(res => setTimeout(res, 1200));
   }
-  if (dot) dot.style.background = '#4caf50'; // 就绪：绿色
-  if (badge) {
-    currentMode = health.mode === 'pve' ? 'pve' : 'pvp';
-    badge.textContent = currentMode === 'pve' ? 'PvE 价格' : 'PvP 价格';
-    badge.disabled = false;
-  }
+  if (dot) dot.style.background = '#67c23a';
+  currentMode = health.mode === 'pve' ? 'pve' : 'pvp';
+  badge.textContent = currentMode === 'pve' ? 'PvE 价格' : 'PvP 价格';
+  badge.disabled = false;
   bootOverlay.classList.add('fade-out');
   setTimeout(() => bootOverlay.remove(), 400);
   backendWaiters.splice(0).forEach(fn => fn());
-  // 默认价格栏：后端就绪后自动加载全部物品（按分类收束展示）
-  loadAllItems();
+  renderSubnav();
+  // 首页分类瓦片 / 价格页共用这份数据；加载完再处理深链，避免列表被覆盖
+  loadAllItems().then(() => {
+    // 深链：?page=price&type=武器 / ?page=price&item=<id> / ?page=task&trader=猎人
+    const params = new URLSearchParams(location.search);
+    const pg = params.get('page');
+    if (!pg || !PAGE_TITLES[pg]) return;
+    const ty = params.get('type');
+    const tr = params.get('trader');
+    const it = params.get('item');
+    if (pg === 'price' && it) { switchPage('price'); showItem(it); }
+    else if (pg === 'price' && ty) openPriceType(ty);
+    else if (pg === 'task' && tr) openTaskTrader(tr);
+    else switchPage(pg);
+  });
 })();
+
+/* ================= 通用工具 ================= */
+function escapeHtml(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function fmtPrice(v) {
+  if (v == null) return '—';
+  const n = Number(v);
+  if (n >= 10000) return (n / 10000).toFixed(1) + ' 万';
+  return n.toLocaleString();
+}
+async function getJSON(url, retries = 3) {
+  for (let i = 0; ; i++) {
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      return await resp.json();
+    } catch (e) {
+      if (i >= retries - 1) throw e;
+      await new Promise(res => setTimeout(res, 800 * (i + 1)));
+    }
+  }
+}
+function whenEcharts(cb, tries = 0) {
+  if (typeof echarts !== 'undefined') { cb(); return; }
+  if (tries > 50) {
+    const el = document.getElementById('trend-chart');
+    if (el) el.innerHTML = '<div class="empty-tip">图表组件加载失败</div>';
+    return;
+  }
+  setTimeout(() => whenEcharts(cb, tries + 1), 100);
+}
+
+/* ================= 页面切换 + 二级导航 ================= */
+const PAGE_TITLES = { home: '网站首页', price: '价格行情', task: '任务查询', hideout: '藏身处配方', chat: '智能助手' };
+
+function switchPage(name) {
+  currentPage = name;
+  document.querySelectorAll('#main-nav a').forEach(a => a.classList.toggle('active', a.dataset.page === name));
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + name));
+  renderSubnav();
+  window.scrollTo(0, 0);
+  try {
+    const url = new URL(location.href);
+    if (name === 'home') url.search = ''; else url.search = '?page=' + name;
+    history.replaceState(null, '', url);
+  } catch (e) { /* file:// 等环境下忽略 */ }
+  if (name === 'price') {
+    if (!allItemsLoaded) loadAllItems();
+    else if (!document.querySelector('#price-list .group, #price-list .list-item')) renderItemGroups();
+  }
+  if (name === 'task') {
+    if (!allTasksLoaded) loadAllTasks();
+    else if (!document.querySelector('#task-list .group, #task-list .list-item')) renderTaskGroups(allTasksList);
+  }
+  if (name === 'hideout' && !hideoutLoaded) loadHideout();
+}
+
+function subnavLink(label, act, active) {
+  return '<a class="' + (active ? 'active' : '') + '" data-act="' + act + '">' + escapeHtml(label) + '</a>';
+}
+
+function renderSubnav() {
+  const box = document.getElementById('subnav');
+  let html = '';
+  if (currentPage === 'home') {
+    html += subnavLink('价格行情', 'page:price', false);
+    html += subnavLink('任务查询', 'page:task', false);
+    html += subnavLink('藏身处配方', 'page:hideout', false);
+    html += subnavLink('智能助手', 'page:chat', false);
+    html += '<span class="sep"></span>';
+    html += '<span style="font-size:13px;color:var(--text-3);padding:0 6px">收录 ' +
+      allItemGroups.length + ' 个分类 · ' + totalItemCount() + ' 个物品</span>';
+  } else if (currentPage === 'price') {
+    html += subnavLink('全部物品', 'type:', activePriceType === '');
+    allItemGroups.forEach(g => {
+      html += subnavLink(g.type, 'type:' + g.type, activePriceType === g.type);
+    });
+    if (allItemGroups.length === 0) html += '<span style="font-size:13px;color:var(--text-3);padding:0 6px">分类加载中…</span>';
+  } else if (currentPage === 'task') {
+    html += subnavLink('全部任务', 'trader:', activeTrader === '');
+    taskTraders().forEach(t => {
+      html += subnavLink(t.name + '（' + t.count + '）', 'trader:' + t.name, activeTrader === t.name);
+    });
+    if (allTasksList.length === 0) html += '<span style="font-size:13px;color:var(--text-3);padding:0 6px">任务加载中…</span>';
+  } else if (currentPage === 'hideout') {
+    html += subnavLink('制造配方', 'hideout:crafts', currentSub === 'crafts');
+    html += subnavLink('以物换物', 'hideout:barters', currentSub === 'barters');
+    html += subnavLink('工作站升级', 'hideout:stations', currentSub === 'stations');
+  } else {
+    html += subnavLink('清空会话', 'chat:reset', false);
+  }
+  box.innerHTML = html;
+}
+
+function totalItemCount() {
+  return allItemGroups.reduce((n, g) => n + g.items.length, 0);
+}
+
+function taskTraders() {
+  const map = {};
+  const order = [];
+  allTasksList.forEach(t => {
+    const k = t.trader || '其他';
+    if (!(k in map)) { map[k] = 0; order.push(k); }
+    map[k]++;
+  });
+  order.sort((a, b) => map[b] - map[a]);
+  return order.map(k => ({ name: k, count: map[k] }));
+}
+
+/* 统一事件代理：所有 data-act 元素 */
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-act]');
+  if (!el) return;
+  const act = el.dataset.act;
+  if (act === 'mode') { toggleMode(); return; }
+  const idx = act.indexOf(':');
+  const kind = idx < 0 ? act : act.slice(0, idx);
+  const val = idx < 0 ? '' : act.slice(idx + 1);
+  if (kind === 'page') switchPage(val);
+  else if (kind === 'type') openPriceType(val);
+  else if (kind === 'trader') openTaskTrader(val);
+  else if (kind === 'hideout') { switchPage('hideout'); switchSubTab(val); }
+  else if (kind === 'chat') resetChat();
+  else if (kind === 'price') { if (val === 'search') searchItems(); else showAllItems(); }
+  else if (kind === 'task') { if (val === 'search') searchTasks(); else showAllTasks(); }
+});
 
 /* 右上角一键切换 PvP / PvE 价格模式 */
 async function toggleMode() {
@@ -355,21 +629,15 @@ async function toggleMode() {
     if (data.status !== 'ok' || data.error) throw new Error(data.error || '切换失败');
     currentMode = data.mode;
     badge.textContent = currentMode === 'pve' ? 'PvE 价格' : 'PvP 价格';
-    // 模式已切换：清空旧模式的数据缓存，重新加载当前页列表
-    allItemsLoaded = false;
-    allItemGroups = [];
-    allTasksLoaded = false;
-    allTasksList = [];
+    allItemsLoaded = false; allItemGroups = []; activePriceType = '';
+    allTasksLoaded = false; allTasksList = []; activeTrader = '';
+    hideoutLoaded = false; hideoutData = { crafts: [], barters: [], stations: [] };
     document.getElementById('price-search').value = '';
+    document.getElementById('task-search').value = '';
     document.getElementById('price-list').innerHTML =
       '<div class="empty-tip">已切换到 ' + (currentMode === 'pve' ? 'PvE' : 'PvP') + ' 模式，正在加载…</div>';
     document.getElementById('price-detail').innerHTML = '<div class="empty-tip">点击左侧物品查看价格与趋势</div>';
-    document.getElementById('task-search').value = '';
-    const activeTab = document.querySelector('.tab.active') ? document.querySelector('.tab.active').dataset.tab : 'price';
-    if (activeTab === 'task') { loadAllTasks(); } else { loadAllItems(); }
-    // 藏身处数据重置，下次进入自动按新模式加载
-    hideoutLoaded = false;
-    hideoutData = { crafts: [], barters: [], stations: [] };
+    if (currentPage === 'task') loadAllTasks(); else loadAllItems();
   } catch (e) {
     badge.textContent = currentMode === 'pve' ? 'PvE 价格' : 'PvP 价格';
     alert('切换失败：' + e.message);
@@ -378,79 +646,76 @@ async function toggleMode() {
   }
 }
 
-/* ================= Tab 切换 ================= */
-function switchTab(name) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
-  if (name === 'price' && !allItemsLoaded) loadAllItems();
-  if (name === 'task' && !allTasksLoaded) loadAllTasks();
-  if (name === 'hideout' && !hideoutLoaded) loadHideout();
-}
-
-/* ================= 工具函数 ================= */
-function escapeHtml(str) {
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-function fmtPrice(v) {
-  if (v == null) return '—';
-  const n = Number(v);
-  if (n >= 10000) return (n / 10000).toFixed(1) + ' 万';
-  return n.toLocaleString();
-}
-async function getJSON(url, retries = 3) {
-  // 后端重启/瞬断时自动重试（指数退避），避免一失败就白屏
-  for (let i = 0; ; i++) {
-    try {
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      return await resp.json();
-    } catch (e) {
-      if (i >= retries - 1) throw e;
-      await new Promise(res => setTimeout(res, 800 * (i + 1)));
-    }
-  }
-}
-
-/* 等 ECharts 就绪后再渲染图表（本地脚本异步加载，防御性等待） */
-function whenEcharts(cb, tries = 0) {
-  if (typeof echarts !== 'undefined') { cb(); return; }
-  if (tries > 50) { // 5 秒内没加载出来，放弃并提示
-    const el = document.getElementById('trend-chart');
-    if (el) el.innerHTML = '<div class="empty-tip">图表组件加载失败</div>';
-    return;
-  }
-  setTimeout(() => whenEcharts(cb, tries + 1), 100);
-}
-
 /* ================= 价格行情 ================= */
-let allItemGroups = [];      // 全部物品（按分类分组）[{type, items}]
+let allItemGroups = [];
 let allItemsLoaded = false;
-let itemGroupExpanded = {};  // 分类展开状态
+let itemGroupExpanded = {};
+let activePriceType = '';
+
+const CAT_ICON = {
+  '武器': 'ic-rifle', '弹药': 'ic-ammo', '护甲': 'ic-vest', '穿戴': 'ic-helmet',
+  '医疗': 'ic-med', '钥匙': 'ic-key', '投掷物': 'ic-grenade', '容器': 'ic-box',
+  '补给': 'ic-bottle', '物资': 'ic-sack', '改装件': 'ic-wrench', '杂物': 'ic-scrap',
+};
+
+function catIcon(type) {
+  return '#ic-' + (CAT_ICON[type] || 'ic-dots').slice(3);
+}
 
 function itemRowHtml(it) {
-  return '<div class="list-item" onclick="showItem(\'' + it.id + '\')">' +
+  return '<div class="list-item" data-id="' + it.id + '" onclick="showItem(\'' + it.id + '\')">' +
     '<div class="name">' + escapeHtml(it.name) + '</div>' +
     '<div class="meta">' + escapeHtml(it.normalizedName) + '</div></div>';
 }
 
-/* 加载全部物品（按分类分组收束显示） */
 async function loadAllItems() {
   const list = document.getElementById('price-list');
-  list.innerHTML = '<div class="empty-tip">加载中…</div>';
+  if (currentPage === 'price') list.innerHTML = '<div class="empty-tip">加载中…</div>';
   try {
     const data = await getJSON('/api/items');
     allItemGroups = data.groups || [];
     allItemsLoaded = true;
-    renderItemGroups();
+    renderHomeCats();
+    if (currentPage === 'home') renderSubnav();
+    if (currentPage === 'price') { renderItemGroups(); renderSubnav(); }
+    const cnt = document.getElementById('price-count');
+    if (cnt) cnt.textContent = '共 ' + totalItemCount() + ' 个物品';
   } catch (e) {
-    list.innerHTML = '<div class="empty-tip">加载失败：' + escapeHtml(e.message) + '</div>';
+    if (currentPage === 'price') list.innerHTML = '<div class="empty-tip">加载失败：' + escapeHtml(e.message) + '</div>';
   }
 }
 
+function renderHomeCats() {
+  const box = document.getElementById('home-cats');
+  if (!box) return;
+  if (allItemGroups.length === 0) { box.innerHTML = '<div class="empty-tip" style="grid-column:1/-1">暂无物品数据</div>'; return; }
+  box.innerHTML = allItemGroups.map(g =>
+    '<button class="tile" data-act="type:' + escapeHtml(g.type) + '">' +
+    '<svg><use href="' + catIcon(g.type) + '"/></svg>' +
+    '<span>' + escapeHtml(g.type) + '（' + g.items.length + '）</span></button>'
+  ).join('');
+}
+
 function showAllItems() {
+  activePriceType = '';
   document.getElementById('price-search').value = '';
-  if (allItemsLoaded) renderItemGroups();
+  if (allItemsLoaded) { renderItemGroups(); renderSubnav(); }
   else loadAllItems();
+}
+
+async function openPriceType(type) {
+  switchPage('price');
+  if (!allItemsLoaded) await loadAllItems();
+  activePriceType = type || '';
+  Object.keys(itemGroupExpanded).forEach(k => { itemGroupExpanded[k] = false; });
+  if (type) itemGroupExpanded[type] = true;
+  document.getElementById('price-search').value = '';
+  renderItemGroups();
+  renderSubnav();
+  if (type) {
+    const g = Array.from(document.querySelectorAll('#price-list .group')).find(el => el.dataset.type === type);
+    if (g) g.scrollIntoView({ block: 'start' });
+  }
 }
 
 function renderItemGroups() {
@@ -459,13 +724,14 @@ function renderItemGroups() {
     list.innerHTML = '<div class="empty-tip">暂无物品数据</div>';
     return;
   }
-  const total = allItemGroups.reduce((n, g) => n + g.items.length, 0);
-  let html = '<div class="group-toolbar">共 ' + total + ' 个物品，按分类折叠 · ' +
+  const groups = activePriceType ? allItemGroups.filter(g => g.type === activePriceType) : allItemGroups;
+  const total = groups.reduce((n, g) => n + g.items.length, 0);
+  let html = '<div class="group-toolbar">共 ' + total + ' 个物品 · ' +
     '<a onclick="toggleAllItemGroups(true)">全部展开</a> / ' +
     '<a onclick="toggleAllItemGroups(false)">全部收起</a></div>';
-  html += allItemGroups.map(g => {
+  html += groups.map(g => {
     const expanded = !!itemGroupExpanded[g.type];
-    return '<div class="group">' +
+    return '<div class="group" data-type="' + escapeHtml(g.type) + '">' +
       '<div class="group-head" onclick="toggleItemGroup(\'' + g.type + '\')">' +
       '<span class="group-arrow">' + (expanded ? '▾' : '▸') + '</span>' +
       '<span class="group-name">' + escapeHtml(g.type) + '</span>' +
@@ -490,6 +756,8 @@ function toggleAllItemGroups(expand) {
 async function searchItems() {
   const kw = document.getElementById('price-search').value.trim();
   const list = document.getElementById('price-list');
+  activePriceType = '';
+  renderSubnav();
   if (!kw) { showAllItems(); return; }
   list.innerHTML = '<div class="empty-tip">搜索中…</div>';
   try {
@@ -499,7 +767,6 @@ async function searchItems() {
       return;
     }
     list.innerHTML = data.items.map(itemRowHtml).join('');
-    // 自动选中第一个
     showItem(data.items[0].id);
   } catch (e) {
     list.innerHTML = '<div class="empty-tip">搜索失败：' + escapeHtml(e.message) + '</div>';
@@ -512,7 +779,7 @@ let currentDays = 30;
 async function showItem(id) {
   currentItemId = id;
   document.querySelectorAll('#price-list .list-item').forEach(el =>
-    el.classList.toggle('active', el.onclick && el.getAttribute('onclick').includes(id)));
+    el.classList.toggle('active', el.dataset.id === id));
   const detail = document.getElementById('price-detail');
   detail.innerHTML = '<div class="empty-tip">加载中…</div>';
   try {
@@ -527,7 +794,7 @@ async function showItem(id) {
       '<div class="kv">' +
       '<span>英文名 <b>' + escapeHtml(data.normalizedName) + '</b></span>' +
       '<span>类型 <b>' + escapeHtml(data.type) + '</b></span>' +
-      '<span>占格 <b>' + data.width + 'x' + data.height + '</b></span>' +
+      '<span>占格 <b>' + data.width + '×' + data.height + '</b></span>' +
       '<span>重量 <b>' + data.weight + ' kg</b></span>' +
       '<span>基础价 <b>' + fmtPrice(data.basePrice) + ' 卢布</b></span>' +
       (data.minLevelForFlea != null ? '<span>跳蚤最低等级 <b>' + data.minLevelForFlea + '</b></span>' : '') +
@@ -535,15 +802,16 @@ async function showItem(id) {
       '<div class="card"><h3>市场价格</h3><div class="kv">' +
       (p.noFlea
         ? '<span>该物品<b>禁止跳蚤交易</b></span>'
-        : '<span>24h均价 <b>' + fmtPrice(p.avg24hPrice) + ' 卢布</b></span>' +
-          '<span>24h最低/最高 <b>' + fmtPrice(p.low24hPrice) + ' / ' + fmtPrice(p.high24hPrice) + '</b></span>' +
-          '<span>最近最低价 <b>' + fmtPrice(p.lastLowPrice) + '</b></span>' +
-          '<span>48h涨跌 <b class="' + pctCls + '">' + pctTxt + '</b></span>') +
+        : '<span>24h 均价 <b>' + fmtPrice(p.avg24hPrice) + ' 卢布</b></span>' +
+          '<span>24h 最低 / 最高 <b>' + fmtPrice(p.low24hPrice) + ' / ' + fmtPrice(p.high24hPrice) + '</b></span>' +
+          '<span>最近最低价 <b>' + fmtPrice(p.lastLowPrice) + ' 卢布</b></span>' +
+          '<span>48h 涨跌 <b class="' + pctCls + '">' + pctTxt + '</b></span>') +
       '</div></div>' +
       '<div class="card"><h3>价格趋势</h3>' +
       '<div class="seg">' +
-      '<button class="' + (currentDays === 7 ? 'active' : '') + '" onclick="setDays(7)">7天</button>' +
-      '<button class="' + (currentDays === 30 ? 'active' : '') + '" onclick="setDays(30)">30天</button>' +
+      '<button class="' + (currentDays === 7 ? 'active' : '') + '" onclick="setDays(7)">7 天</button>' +
+      '<button class="' + (currentDays === 30 ? 'active' : '') + '" onclick="setDays(30)">30 天</button>' +
+      '<button class="' + (currentDays === 90 ? 'active' : '') + '" onclick="setDays(90)">90 天</button>' +
       '</div><div class="chart-box" id="trend-chart"></div></div>';
     loadTrend(id, data.name, currentDays);
   } catch (e) {
@@ -553,63 +821,133 @@ async function showItem(id) {
 
 function setDays(d) { currentDays = d; if (currentItemId) showItem(currentItemId); }
 
+function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+function fmtPointTime(ts) {
+  const d = new Date(ts);
+  return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+}
+
+// 把时间点拆成横轴标签：同一天只标一次日期，避免横轴出现重复的「10/9」
+function trendSeries(points) {
+  const span = points.length > 1 ? points[points.length - 1].ts - points[0].ts : 0;
+  const withTime = span <= 3 * 86400000;
+  const labels = [];
+  const values = [];
+  let prevDay = '';
+  points.forEach(p => {
+    const d = new Date(p.ts);
+    const day = (d.getMonth() + 1) + '/' + d.getDate();
+    values.push(Math.round(p.price));
+    if (day !== prevDay) {
+      labels.push(withTime ? day + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) : day);
+      prevDay = day;
+    } else {
+      labels.push(withTime ? pad2(d.getHours()) + ':' + pad2(d.getMinutes()) : '');
+    }
+  });
+  return { labels: labels, values: values };
+}
+
+function trendOption(points, name) {
+  const s = trendSeries(points);
+  return {
+    backgroundColor: 'transparent',
+    grid: { left: 62, right: 20, top: 18, bottom: 30 },
+    tooltip: {
+      trigger: 'axis',
+      formatter: (ps) => {
+        if (!ps || !ps.length) return '';
+        const pt = points[ps[0].dataIndex];
+        if (!pt) return '';
+        return fmtPointTime(pt.ts) + '<br/>' + fmtPrice(pt.price) + ' 卢布';
+      },
+    },
+    xAxis: {
+      type: 'category', data: s.labels, boundaryGap: false,
+      axisLabel: { color: '#909399', fontSize: 11 },
+      axisLine: { lineStyle: { color: '#e4e7ed' } },
+      axisTick: { show: false },
+    },
+    yAxis: {
+      type: 'value',
+      axisLabel: { color: '#909399', fontSize: 11, formatter: v => (v >= 10000 ? (v / 10000) + '万' : v) },
+      splitLine: { lineStyle: { color: '#f0f2f5' } },
+    },
+    series: [{
+      type: 'line', name: name || '价格', data: s.values, smooth: true, showSymbol: false,
+      lineStyle: { color: '#409eff', width: 2 },
+      areaStyle: { color: 'rgba(64,158,255,0.12)' },
+    }],
+  };
+}
+
 async function loadTrend(id, name, days) {
+  const box = document.getElementById('trend-chart');
+  if (!box) return;
   try {
     const data = await getJSON('/api/price/trend/' + id + '?days=' + days);
     if (!data.points || data.points.length < 2) {
-      document.getElementById('trend-chart').innerHTML = '<div class="empty-tip">暂无足够价格数据</div>';
+      box.innerHTML = '<div class="empty-tip">暂无足够价格数据</div>';
       return;
     }
-    const el = document.getElementById('trend-chart');
     whenEcharts(() => {
-      const chart = echarts.init(el);
-      const labels = data.points.map(p => { const d = new Date(p.ts); return (d.getMonth() + 1) + '/' + d.getDate(); });
-      const values = data.points.map(p => Math.round(p.price));
-      chart.setOption({
-        backgroundColor: 'transparent',
-        grid: { left: 60, right: 16, top: 16, bottom: 28 },
-        tooltip: { trigger: 'axis', valueFormatter: v => v + ' 卢布' },
-        xAxis: { type: 'category', data: labels, axisLabel: { color: '#9aa0aa' }, axisLine: { lineStyle: { color: '#2e3440' } } },
-        yAxis: { type: 'value', name: '卢布', nameTextStyle: { color: '#9aa0aa' }, axisLabel: { color: '#9aa0aa', formatter: v => (v >= 10000 ? (v / 10000) + '万' : v) }, splitLine: { lineStyle: { color: '#2e3440' } } },
-        series: [{ type: 'line', data: values, smooth: true, showSymbol: false, lineStyle: { color: '#c8a24a', width: 2 }, areaStyle: { color: 'rgba(200,162,74,0.15)' } }]
-      });
+      const chart = echarts.init(box);
+      chart.setOption(trendOption(data.points, data.name || name));
       window.addEventListener('resize', () => chart.resize());
     });
   } catch (e) {
-    document.getElementById('trend-chart').innerHTML = '<div class="empty-tip">趋势加载失败</div>';
+    box.innerHTML = '<div class="empty-tip">趋势加载失败</div>';
   }
 }
 
 /* ================= 任务查询 ================= */
-let allTasksList = [];       // 全部任务（原始）
-let currentTaskList = [];    // 当前展示的任务（全部或搜索结果）
+let allTasksList = [];
+let currentTaskList = [];
 let allTasksLoaded = false;
-let taskGroupExpanded = {};  // 商人分组展开状态
+let taskGroupExpanded = {};
+let activeTrader = '';
 
 function taskRowHtml(t) {
-  return '<div class="list-item" onclick="showTask(\'' + t.id + '\')">' +
+  return '<div class="list-item" data-id="' + t.id + '" onclick="showTask(\'' + t.id + '\')">' +
     '<div class="name">' + escapeHtml(t.name) + '</div>' +
     '<div class="meta">' + escapeHtml(t.normalizedName) + '</div></div>';
 }
 
-/* 加载全部任务（按商人分组收束显示） */
 async function loadAllTasks() {
   const list = document.getElementById('task-list');
-  list.innerHTML = '<div class="empty-tip">加载中…</div>';
+  if (currentPage === 'task') list.innerHTML = '<div class="empty-tip">加载中…</div>';
   try {
     const data = await getJSON('/api/tasks?keyword=&limit=1000');
     allTasksList = data.tasks || [];
     allTasksLoaded = true;
+    currentTaskList = allTasksList;
     renderTaskGroups(allTasksList);
+    renderSubnav();
+    const cnt = document.getElementById('task-count');
+    if (cnt) cnt.textContent = '共 ' + allTasksList.length + ' 个任务';
   } catch (e) {
-    list.innerHTML = '<div class="empty-tip">加载失败：' + escapeHtml(e.message) + '</div>';
+    if (currentPage === 'task') list.innerHTML = '<div class="empty-tip">加载失败：' + escapeHtml(e.message) + '</div>';
   }
 }
 
 function showAllTasks() {
+  activeTrader = '';
   document.getElementById('task-search').value = '';
-  if (allTasksLoaded) renderTaskGroups(allTasksList);
+  if (allTasksLoaded) { renderTaskGroups(allTasksList); renderSubnav(); }
   else loadAllTasks();
+}
+
+function openTaskTrader(trader) {
+  switchPage('task');
+  activeTrader = trader || '';
+  Object.keys(taskGroupExpanded).forEach(k => { taskGroupExpanded[k] = false; });
+  if (trader) taskGroupExpanded[trader] = true;
+  renderTaskGroups(allTasksLoaded ? allTasksList : currentTaskList);
+  renderSubnav();
+  if (trader) {
+    const g = Array.from(document.querySelectorAll('#task-list .group')).find(el => el.dataset.type === trader);
+    if (g) g.scrollIntoView({ block: 'start' });
+  }
 }
 
 function renderTaskGroups(tasks) {
@@ -619,7 +957,6 @@ function renderTaskGroups(tasks) {
     list.innerHTML = '<div class="empty-tip">没找到相关任务</div>';
     return;
   }
-  // 按商人分组
   const groups = {};
   const order = [];
   tasks.forEach(t => {
@@ -627,14 +964,15 @@ function renderTaskGroups(tasks) {
     if (!(trader in groups)) { groups[trader] = []; order.push(trader); }
     groups[trader].push(t);
   });
-  // 按任务数降序排商人
   order.sort((a, b) => groups[b].length - groups[a].length);
-  let html = '<div class="group-toolbar">共 ' + tasks.length + ' 个任务，按商人折叠 · ' +
+  const shown = activeTrader ? order.filter(o => o === activeTrader) : order;
+  const total = shown.reduce((n, k) => n + groups[k].length, 0);
+  let html = '<div class="group-toolbar">共 ' + total + ' 个任务 · ' +
     '<a onclick="toggleAllTaskGroups(true)">全部展开</a> / ' +
     '<a onclick="toggleAllTaskGroups(false)">全部收起</a></div>';
-  html += order.map(trader => {
+  html += shown.map(trader => {
     const expanded = !!taskGroupExpanded[trader];
-    return '<div class="group">' +
+    return '<div class="group" data-type="' + escapeHtml(trader) + '">' +
       '<div class="group-head" onclick="toggleTaskGroup(\'' + trader + '\')">' +
       '<span class="group-arrow">' + (expanded ? '▾' : '▸') + '</span>' +
       '<span class="group-name">' + escapeHtml(trader) + '</span>' +
@@ -661,6 +999,8 @@ function toggleAllTaskGroups(expand) {
 async function searchTasks() {
   const kw = document.getElementById('task-search').value.trim();
   const list = document.getElementById('task-list');
+  activeTrader = '';
+  renderSubnav();
   if (!kw) { showAllTasks(); return; }
   list.innerHTML = '<div class="empty-tip">搜索中…</div>';
   try {
@@ -681,7 +1021,7 @@ const OBJ_TAG = {
 
 async function showTask(id) {
   document.querySelectorAll('#task-list .list-item').forEach(el =>
-    el.classList.toggle('active', el.getAttribute('onclick').includes(id)));
+    el.classList.toggle('active', el.dataset.id === id));
   const detail = document.getElementById('task-detail');
   detail.innerHTML = '<div class="empty-tip">加载中…</div>';
   try {
@@ -698,9 +1038,9 @@ async function showTask(id) {
     } else {
       d.objectives.forEach(o => {
         const tag = OBJ_TAG[o.type] || o.type;
-        let line = '<div class="obj"><span class="tag">' + tag + '</span>' + escapeHtml(o.desc || '');
+        let line = '<div class="obj"><span class="tag">' + tag + '</span><span>' + escapeHtml(o.desc || '');
         if (o.count > 1) line += ' ×' + o.count;
-        line += '</div>';
+        line += '</span></div>';
         if (o.items && o.items.length > 0) {
           line += '<div class="req-list">' + o.items.map(i => '<span class="req">' + escapeHtml(i) + '</span>').join('') + '</div>';
         }
@@ -722,10 +1062,11 @@ async function showTask(id) {
 /* ================= 藏身处配方 ================= */
 let hideoutLoaded = false;
 let currentSub = 'crafts';
+let hideoutData = { crafts: [], barters: [], stations: [] };
 
 function switchSubTab(sub) {
   currentSub = sub;
-  document.querySelectorAll('.sub-tabs button').forEach(b => b.classList.toggle('active', b.dataset.sub === sub));
+  renderSubnav();
   renderHideout();
 }
 
@@ -744,35 +1085,38 @@ async function loadHideout() {
   }
 }
 
-let hideoutData = { crafts: [], barters: [], stations: [] };
-
 function renderHideout() {
   const box = document.getElementById('hideout-content');
-  if (!hideoutLoaded) return;
+  if (!hideoutLoaded) {
+    if (currentPage === 'hideout') box.innerHTML = '<div class="empty-tip">加载中…</div>';
+    return;
+  }
+  let html = '';
   if (currentSub === 'crafts') {
-    box.innerHTML = hideoutData.crafts.map(c =>
+    html = '<div class="hideout-grid">' + hideoutData.crafts.map(c =>
       '<div class="card"><h3>' + escapeHtml(c.product) + ' ×' + c.product_count + '</h3>' +
       '<div class="kv"><span>工作站 <b>' + escapeHtml(c.station) + ' Lv' + c.level + '</b></span>' +
       '<span>耗时 <b>' + (c.duration ? Math.round(c.duration / 60) + ' 分钟' : '—') + '</b></span></div>' +
       '<div class="req-list">' + c.requirements.map(r => '<span class="req">' + escapeHtml(r.name) + ' ×' + r.count + '</span>').join('') + '</div></div>'
-    ).join('');
+    ).join('') + '</div>';
   } else if (currentSub === 'barters') {
-    box.innerHTML = hideoutData.barters.map(b =>
+    html = '<div class="hideout-grid">' + hideoutData.barters.map(b =>
       '<div class="card"><h3>' + escapeHtml(b.offered) + ' ×' + b.offered_count + '</h3>' +
       '<div class="kv"><span>商人 <b>' + escapeHtml(b.trader) + '</b></span>' +
       (b.minTraderLevel != null ? '<span>商人等级 <b>' + b.minTraderLevel + '</b></span>' : '') + '</div>' +
       '<div class="req-list">' + b.requirements.map(r => '<span class="req">' + escapeHtml(r.name) + ' ×' + r.count + '</span>').join('') + '</div></div>'
-    ).join('');
+    ).join('') + '</div>';
   } else {
-    box.innerHTML = hideoutData.stations.map(s =>
+    html = '<div class="hideout-grid">' + hideoutData.stations.map(s =>
       '<div class="card"><h3>' + escapeHtml(s.name) + '</h3>' +
       s.levels.map(lv =>
-        '<div class="obj"><span class="tag">Lv' + lv.level + '</span>' +
-        (lv.requirements.length ? '' : '无材料需求') + '</div>' +
+        '<div class="obj"><span class="tag">Lv' + lv.level + '</span><span>' +
+        (lv.requirements.length ? '升级材料' : '无材料需求') + '</span></div>' +
         (lv.requirements.length ? '<div class="req-list">' + lv.requirements.map(r => '<span class="req">' + escapeHtml(r.name) + ' ×' + r.count + '</span>').join('') + '</div>' : '')
       ).join('') + '</div>'
-    ).join('');
+    ).join('') + '</div>';
   }
+  box.innerHTML = html || '<div class="empty-tip">暂无数据</div>';
 }
 
 /* ================= 智能助手（聊天） ================= */
@@ -781,8 +1125,16 @@ const chatInputEl = document.getElementById('chat-input');
 const sendBtn = document.getElementById('send');
 
 chatInputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
+document.getElementById('price-search').addEventListener('keydown', (e) => { if (e.key === 'Enter') searchItems(); });
+document.getElementById('task-search').addEventListener('keydown', (e) => { if (e.key === 'Enter') searchTasks(); });
+sendBtn.addEventListener('click', sendMessage);
 
 function scrollBottom() { messagesEl.scrollTop = messagesEl.scrollHeight; }
+function messagesInner() {
+  let inner = messagesEl.querySelector('.messages-inner');
+  if (!inner) { inner = document.createElement('div'); inner.className = 'messages-inner'; messagesEl.appendChild(inner); }
+  return inner;
+}
 
 function createMessage(role, text) {
   const div = document.createElement('div');
@@ -790,7 +1142,7 @@ function createMessage(role, text) {
   const label = role === 'user' ? '你' : '助手';
   div.innerHTML = '<div class="label">' + label + '</div><div class="bubble"></div>';
   div.querySelector('.bubble').textContent = text;
-  messagesEl.appendChild(div);
+  messagesInner().appendChild(div);
   scrollBottom();
   return div;
 }
@@ -819,17 +1171,13 @@ function renderChart(chartData, parentEl) {
   scrollBottom();
   const doRender = () => {
     const chart = echarts.init(container);
-    const labels = chartData.points.map(p => { const d = new Date(p.ts); return (d.getMonth() + 1) + '/' + d.getDate(); });
-    const values = chartData.points.map(p => Math.round(p.price));
-    chart.setOption({
-      backgroundColor: 'transparent',
-      grid: { left: 60, right: 16, top: 30, bottom: 28 },
-      tooltip: { trigger: 'axis', valueFormatter: v => v + ' 卢布' },
-      title: { text: chartData.name + ' 价格趋势（近 ' + chartData.days + ' 天）', left: 'center', textStyle: { color: '#e6e8ec', fontSize: 13, fontWeight: 'normal' } },
-      xAxis: { type: 'category', data: labels, axisLabel: { color: '#9aa0aa' }, axisLine: { lineStyle: { color: '#2e3440' } } },
-      yAxis: { type: 'value', name: '卢布', nameTextStyle: { color: '#9aa0aa' }, axisLabel: { color: '#9aa0aa', formatter: v => (v >= 10000 ? (v / 10000) + '万' : v) }, splitLine: { lineStyle: { color: '#2e3440' } } },
-      series: [{ type: 'line', data: values, smooth: true, showSymbol: false, lineStyle: { color: '#c8a24a', width: 2 }, areaStyle: { color: 'rgba(200,162,74,0.15)' } }]
-    });
+    const opt = trendOption(chartData.points, chartData.name);
+    opt.title = {
+      text: chartData.name + ' 价格趋势（近 ' + chartData.days + ' 天）',
+      left: 'center', textStyle: { color: '#606266', fontSize: 13, fontWeight: 'normal' },
+    };
+    opt.grid.top = 40;
+    chart.setOption(opt);
     window.addEventListener('resize', () => chart.resize());
   };
   whenEcharts(doRender);
@@ -886,7 +1234,7 @@ async function sendMessage() {
 async function resetChat() {
   try {
     await fetch('/api/reset', { method: 'POST' });
-    messagesEl.innerHTML = '';
+    messagesEl.innerHTML = '<div class="messages-inner"></div>';
     createMessage('assistant', '会话已重置，开始新的对话吧！');
   } catch (e) {
     alert('重置失败：' + e.message);

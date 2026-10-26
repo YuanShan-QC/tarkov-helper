@@ -276,10 +276,8 @@ def price_trend(item_id: str, days: int = 7):
         days = 7
     days = max(1, min(days, 365))  # 限制在 1~365 天，防止异常值
 
-    points = price_store.get_trend(item_id, days)
-    if len(points) < 2:
-        price_store.import_history(item_id)
-        points = price_store.get_trend(item_id, days)
+    # 本地没有覆盖到窗口起点的历史时，自动从 tarkov.dev 回补一次（每个物品每天最多一次）
+    points = price_store.get_trend_with_history(item_id, days)
 
     name = tarkov.name_by_id(item_id) or item_id
     return {"item_id": item_id, "name": name, "days": days, "points": points}

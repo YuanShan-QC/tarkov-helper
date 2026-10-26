@@ -99,11 +99,8 @@ def tool_get_price_trend(args: dict) -> str:
     if "candidates" in found:
         return _candidates_text(found["candidates"])
 
-    # 从本地 SQLite 读趋势；数据不足时先导入该物品完整历史（首次查询自动触发）
-    points = price_store.get_trend(found["id"], days)
-    if len(points) < 2:
-        price_store.import_history(found["id"])
-        points = price_store.get_trend(found["id"], days)
+    # 从本地 SQLite 读趋势；没覆盖到窗口起点时自动回补该物品完整历史
+    points = price_store.get_trend_with_history(found["id"], days)
 
     if len(points) < 2:
         return f"「{found['name']}」最近 {days} 天价格数据不足，暂无法判断趋势（等价格管道攒一段时间后就有了）"

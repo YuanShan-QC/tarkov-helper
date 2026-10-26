@@ -93,6 +93,25 @@ POST /api/reset          # 重置会话
 POST /api/mode           # 运行时切换 PvP/PvE 价格模式 {"mode":"pve"}
 ```
 
+### 价格历史是自动补全的
+
+定时快照只会在程序运行期间写点，所以光靠快照攒，趋势图永远只有「启动那几天」。
+
+现在改为**按需回补**：第一次点开某物品的趋势图（或 Agent 调用 `get_price_trend`）时，
+如果本地数据在窗口内不够密，会立刻从 tarkov.dev 拉该物品的完整历史（约 1800 个点）写入本地库，
+点开就有完整曲线，不用等。
+
+- 去重：同一物品同一天最多联网一次，导入成功后落 `price_import` 表标记，之后不再重复下载；
+  上游明确没有历史的物品（如卢布，接口 404）也会被标记，不会天天重试。
+- 想一次性把整个市场补全、而不是等用户逐个点开：
+
+```bash
+cd backend
+.venv\Scripts\python.exe backfill_prices.py --dry-run    # 先看有多少物品缺历史
+.venv\Scripts\python.exe backfill_prices.py --limit 200  # 先补 200 个试试
+.venv\Scripts\python.exe backfill_prices.py              # 全部补齐（~3500 个物品，约 10 分钟）
+```
+
 ## 对话示例
 
 ```

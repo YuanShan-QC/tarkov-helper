@@ -83,6 +83,8 @@
   .subnav a.active { color: var(--blue); border-bottom-color: var(--blue); }
   .subnav .sep { width: 1px; height: 14px; background: var(--border); margin: 0 8px; flex: 0 0 auto; }
   .subnav span { white-space: nowrap; }
+  /* 首页不显示二级导航（功能入口已在宫格里） */
+  body[data-page="home"] #subnav { display: none; }
 
   /* ================= 页面容器 ================= */
   .page { display: none; }
@@ -202,34 +204,88 @@
   .hideout-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
   .hideout-grid .card { margin-bottom: 0; }
 
-  /* ================= 智能助手 ================= */
-  .chat-pane { display: flex; flex-direction: column; height: calc(100vh - 108px); }
-  .messages { flex: 1; overflow-y: auto; padding: 22px 0 10px; background: var(--page); }
-  .messages-inner { max-width: 900px; margin: 0 auto; padding: 0 28px; }
-  .msg { margin-bottom: 18px; }
-  .msg .label { font-size: 12px; color: var(--text-3); margin-bottom: 6px; }
-  .msg .bubble {
-    display: inline-block; max-width: 92%; padding: 11px 15px; font-size: 13.5px; line-height: 1.8;
-    border-radius: 4px; white-space: pre-wrap; word-break: break-word;
+  /* ================= 智能助手（对话格式参考 DSH） ================= */
+  .chat-pane { display: flex; flex-direction: column; height: calc(100vh - 108px); background: var(--page); }
+  .messages { flex: 1; overflow-y: auto; padding: 28px 0 12px; }
+  .messages-inner { max-width: 780px; margin: 0 auto; padding: 0 24px; }
+  .turn { margin-bottom: 26px; }
+  .turn-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; color: var(--text-3); }
+  .turn-meta .who { font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+  .turn-meta .copy { margin-left: auto; cursor: pointer; font-size: 12px; color: var(--text-3); }
+  .turn-meta .copy:hover { color: var(--blue); }
+  .turn.user { display: flex; flex-direction: column; align-items: flex-end; }
+  .turn.user .turn-meta { flex-direction: row-reverse; width: 100%; }
+  .turn.user .turn-meta .copy { margin-left: 0; margin-right: auto; }
+  .turn.user .turn-body { max-width: 88%; display: flex; justify-content: flex-end; }
+  .bubble {
+    max-width: 100%; width: fit-content; background: #f2f3f5; color: var(--text); border-radius: 14px;
+    padding: 10px 14px; font-size: 14px; line-height: 1.75; white-space: pre-wrap; word-break: break-word;
   }
-  .msg.user { text-align: right; }
-  .msg.user .bubble { background: var(--blue); color: #fff; text-align: left; }
-  .msg.assistant .bubble { background: #fff; border: 1px solid var(--border-l); color: var(--text); }
-  .trace { margin-top: 8px; max-width: 92%; }
-  .trace summary {
-    font-size: 12.5px; color: var(--blue); cursor: pointer; padding: 4px 0; list-style: none;
+  .md { font-size: 14px; line-height: 1.8; color: var(--text); word-break: break-word; }
+  .md > :first-child { margin-top: 0; }
+  .md > :last-child { margin-bottom: 0; }
+  .md p { margin: 0 0 12px; }
+  .md h1, .md h2, .md h3, .md h4 { margin: 20px 0 8px; font-weight: 600; line-height: 1.4; }
+  .md h1 { font-size: 18px; }
+  .md h2 { font-size: 16px; }
+  .md h3 { font-size: 14.5px; }
+  .md h4 { font-size: 14px; }
+  .md ul, .md ol { margin: 0 0 12px; padding-left: 22px; }
+  .md li { margin: 3px 0; }
+  .md li > p { margin: 0; }
+  .md code {
+    font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+    font-size: 12.5px; background: #f2f3f5; border-radius: 4px; padding: 1px 5px; color: #b4534b;
   }
+  .md pre {
+    background: #f8f9fa; border: 1px solid var(--border-l); border-radius: 8px;
+    padding: 12px 14px; overflow-x: auto; margin: 0 0 12px;
+  }
+  .md pre code { background: none; padding: 0; color: var(--text); font-size: 12.5px; line-height: 1.6; }
+  .md blockquote { margin: 0 0 12px; padding: 2px 0 2px 12px; border-left: 3px solid var(--border); color: var(--text-2); }
+  .md hr { border: 0; border-top: 1px solid var(--border-l); margin: 16px 0; }
+  .md table { border-collapse: collapse; width: 100%; margin: 0 0 12px; font-size: 13px; }
+  .md th, .md td { border: 1px solid var(--border-l); padding: 7px 10px; text-align: left; }
+  .md th { background: #fafafa; font-weight: 600; color: var(--text-2); }
+  .md a { color: var(--blue); text-decoration: none; }
+  .md a:hover { text-decoration: underline; }
+  .md strong { font-weight: 600; }
+  .md-pending { color: var(--text-3); }
+  /* 思考过程 / 工具调用（可折叠，位于回答上方） */
+  .trace { margin: 0 0 12px; }
+  .trace summary { font-size: 12px; color: var(--text-3); cursor: pointer; list-style: none; padding: 2px 0; user-select: none; }
   .trace summary::-webkit-details-marker { display: none; }
   .trace summary::before { content: "▸ "; }
   .trace[open] summary::before { content: "▾ "; }
-  .trace .step { border-left: 2px solid #d9ecff; padding: 4px 0 10px 12px; margin-left: 3px; }
-  .trace .tool { font-size: 12.5px; color: var(--blue-dark); font-weight: 600; margin-bottom: 4px; }
-  .trace .obs { font-size: 12px; color: var(--text-3); white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow-y: auto; }
-  .chat-input-bar { padding: 14px 28px; background: #fff; border-top: 1px solid var(--border-l); }
-  .chat-bar-inner { display: flex; gap: 10px; max-width: 900px; margin: 0 auto; }
-  .chat-input-bar .input { flex: 1; }
-  .chat-hint { padding: 0 28px 10px; background: #fff; font-size: 12px; color: var(--text-3); }
-  .chat-hint-inner { display: block; }
+  .trace summary:hover { color: var(--blue); }
+  .trace .step { border-left: 2px solid var(--border-l); padding: 2px 0 10px 12px; margin: 6px 0 0 3px; }
+  .trace .tool {
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 12px; color: var(--text-2); margin-bottom: 4px;
+  }
+  .trace .obs { font-size: 12px; line-height: 1.7; color: var(--text-3); white-space: pre-wrap; word-break: break-word; max-height: 200px; overflow-y: auto; }
+  /* 空态 */
+  .chat-empty { max-width: 780px; margin: 0 auto; padding: 56px 24px 0; text-align: center; }
+  .chat-empty h2 { font-size: 19px; font-weight: 600; color: var(--text); margin: 0 0 8px; }
+  .chat-empty p { font-size: 13px; color: var(--text-3); margin: 0 0 22px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+  .chip {
+    font: inherit; font-size: 13px; color: var(--text-2); background: #fff; border: 1px solid var(--border);
+    border-radius: 999px; padding: 8px 14px; cursor: pointer; transition: .15s;
+  }
+  .chip:hover { color: var(--blue); border-color: #c6e2ff; background: #f5faff; }
+  /* 输入区 */
+  .chat-input-bar { padding: 8px 24px 4px; background: var(--page); }
+  .chat-bar-inner {
+    display: flex; gap: 10px; max-width: 780px; margin: 0 auto; align-items: center; background: #fff;
+    border: 1px solid var(--border); border-radius: 14px; padding: 8px 8px 8px 16px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, .04); transition: border-color .15s, box-shadow .15s;
+  }
+  .chat-bar-inner:focus-within { border-color: #a0cfff; box-shadow: 0 2px 12px rgba(64, 158, 255, .12); }
+  .chat-input-bar .input { flex: 1; border: 0; background: transparent; padding: 6px 0; font-size: 14px; }
+  .chat-input-bar .input:focus { outline: none; }
+  .chat-hint { padding: 6px 24px 12px; background: var(--page); font-size: 11.5px; color: var(--text-3); text-align: center; }
+  .chat-hint-inner { max-width: 780px; margin: 0 auto; }
 
   /* ================= 启动等待层 ================= */
   #boot-overlay {
@@ -288,7 +344,7 @@
   }
 </style>
 </head>
-<body>
+<body data-page="home">
 <!-- 后端启动等待层：后端未就绪时显示进度，就绪后自动淡出，无需手动刷新 -->
 <div id="boot-overlay">
   <div class="boot-card">
@@ -405,23 +461,25 @@
   <section class="page" id="page-chat">
     <div class="chat-pane">
       <div class="messages" id="messages">
-        <div class="messages-inner">
-          <div class="msg assistant">
-            <div class="label">助手</div>
-            <div class="bubble">你好！我是智能问答助手，适合查价格走势、比价、任务需求这类复杂问题。试试问我：
-· 显卡最近 30 天走势
-· 哪些任务需要 LEDX
-· 捡了个金链，卖商人还是挂跳蚤</div>
+        <div class="messages-inner" id="messages-inner"></div>
+        <div class="chat-empty" id="chat-empty">
+          <h2>有什么可以帮你？</h2>
+          <p>我查本地库里的价格、任务与藏身处数据，可以比价、看走势、算任务需求。</p>
+          <div class="chips">
+            <button class="chip" data-act="ask:显卡最近 30 天走势">显卡最近 30 天走势</button>
+            <button class="chip" data-act="ask:哪些任务需要 LEDX">哪些任务需要 LEDX</button>
+            <button class="chip" data-act="ask:捡了个金链，卖商人还是挂跳蚤">金链卖给谁划算</button>
+            <button class="chip" data-act="ask:情报中心的升级材料要哪些">情报中心升级材料</button>
           </div>
         </div>
       </div>
       <div class="chat-input-bar">
         <div class="chat-bar-inner">
-          <input class="input" id="chat-input" placeholder="问点什么，比如：显卡卖给谁划算" autocomplete="off">
+          <input class="input" id="chat-input" placeholder="给智能助手发消息…" autocomplete="off">
           <button class="btn" id="send">发送</button>
         </div>
       </div>
-      <div class="chat-hint"><div class="chat-bar-inner chat-hint-inner">按 Enter 发送 · 点击「查看思考过程」可看 Agent 的工具调用轨迹</div></div>
+      <div class="chat-hint"><div class="chat-hint-inner">按 Enter 发送 · 回答上方的「思考过程」可展开看 Agent 的工具调用轨迹</div></div>
     </div>
   </section>
 </main>
@@ -521,6 +579,7 @@ const PAGE_TITLES = { home: '网站首页', price: '价格行情', task: '任务
 
 function switchPage(name) {
   currentPage = name;
+  document.body.dataset.page = name;
   document.querySelectorAll('#main-nav a').forEach(a => a.classList.toggle('active', a.dataset.page === name));
   document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + name));
   renderSubnav();
@@ -549,13 +608,7 @@ function renderSubnav() {
   const box = document.getElementById('subnav');
   let html = '';
   if (currentPage === 'home') {
-    html += subnavLink('价格行情', 'page:price', false);
-    html += subnavLink('任务查询', 'page:task', false);
-    html += subnavLink('藏身处配方', 'page:hideout', false);
-    html += subnavLink('智能助手', 'page:chat', false);
-    html += '<span class="sep"></span>';
-    html += '<span style="font-size:13px;color:var(--text-3);padding:0 6px">收录 ' +
-      allItemGroups.length + ' 个分类 · ' + totalItemCount() + ' 个物品</span>';
+    // 首页的功能入口已由图标宫格承担，二级导航留空（并由 CSS 隐藏）
   } else if (currentPage === 'price') {
     html += subnavLink('全部物品', 'type:', activePriceType === '');
     allItemGroups.forEach(g => {
@@ -608,6 +661,7 @@ document.addEventListener('click', (e) => {
   else if (kind === 'trader') openTaskTrader(val);
   else if (kind === 'hideout') { switchPage('hideout'); switchSubTab(val); }
   else if (kind === 'chat') resetChat();
+  else if (kind === 'ask') { switchPage('chat'); chatInputEl.value = val; sendMessage(); }
   else if (kind === 'price') { if (val === 'search') searchItems(); else showAllItems(); }
   else if (kind === 'task') { if (val === 'search') searchTasks(); else showAllTasks(); }
 });
@@ -1119,49 +1173,160 @@ function renderHideout() {
   box.innerHTML = html || '<div class="empty-tip">暂无数据</div>';
 }
 
-/* ================= 智能助手（聊天） ================= */
+/* ================= 智能助手（对话，格式参考 DSH） ================= */
 const messagesEl = document.getElementById('messages');
+const messagesInnerEl = document.getElementById('messages-inner');
+const chatEmptyEl = document.getElementById('chat-empty');
 const chatInputEl = document.getElementById('chat-input');
 const sendBtn = document.getElementById('send');
 
-chatInputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
+chatInputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) sendMessage(); });
 document.getElementById('price-search').addEventListener('keydown', (e) => { if (e.key === 'Enter') searchItems(); });
 document.getElementById('task-search').addEventListener('keydown', (e) => { if (e.key === 'Enter') searchTasks(); });
 sendBtn.addEventListener('click', sendMessage);
 
 function scrollBottom() { messagesEl.scrollTop = messagesEl.scrollHeight; }
-function messagesInner() {
-  let inner = messagesEl.querySelector('.messages-inner');
-  if (!inner) { inner = document.createElement('div'); inner.className = 'messages-inner'; messagesEl.appendChild(inner); }
-  return inner;
+function hideEmpty() { if (chatEmptyEl) chatEmptyEl.style.display = 'none'; }
+function showEmpty() { if (chatEmptyEl) chatEmptyEl.style.display = ''; }
+
+/* --- 极简 Markdown 渲染：先整体转义，再做块级/行内替换，避免 HTML 注入 --- */
+function mdInline(s) {
+  s = s.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+  s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  return s;
 }
 
-function createMessage(role, text) {
-  const div = document.createElement('div');
-  div.className = 'msg ' + role;
-  const label = role === 'user' ? '你' : '助手';
-  div.innerHTML = '<div class="label">' + label + '</div><div class="bubble"></div>';
-  div.querySelector('.bubble').textContent = text;
-  messagesInner().appendChild(div);
+function renderMd(raw) {
+  const lines = escapeHtml(String(raw || '')).split(/\r?\n/);
+  const out = [];
+  let i = 0;
+  const isSep = (l) => /^\s*\|?[\s:-]*-[\s|:-]*\|?\s*$/.test(l) && l.indexOf('-') >= 0;
+  const rowCells = (r) => r.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|').map(c => mdInline(c.trim()));
+  const listRe = /^\s*([-*+]|\d+[.)])\s+/;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (/^\s*```/.test(line)) {
+      const buf = [];
+      i++;
+      while (i < lines.length && !/^\s*```/.test(lines[i])) { buf.push(lines[i]); i++; }
+      i++;
+      out.push('<pre><code>' + buf.join('\n') + '</code></pre>');
+      continue;
+    }
+    if (!line.trim()) { i++; continue; }
+    const h = line.match(/^(#{1,4})\s+(.*)$/);
+    if (h) { const lv = h[1].length; out.push('<h' + lv + '>' + mdInline(h[2]) + '</h' + lv + '>'); i++; continue; }
+    if (/^\s*(---+|\*\*\*+|___+)\s*$/.test(line)) { out.push('<hr>'); i++; continue; }
+    if (line.indexOf('|') >= 0 && i + 1 < lines.length && isSep(lines[i + 1])) {
+      const head = rowCells(line);
+      i += 2;
+      const body = [];
+      while (i < lines.length && lines[i].trim() && lines[i].indexOf('|') >= 0) { body.push(rowCells(lines[i])); i++; }
+      let t = '<table><thead><tr>' + head.map(c => '<th>' + c + '</th>').join('') + '</tr></thead><tbody>';
+      body.forEach(r => { t += '<tr>' + r.map(c => '<td>' + c + '</td>').join('') + '</tr>'; });
+      out.push(t + '</tbody></table>');
+      continue;
+    }
+    if (/^\s*&gt;\s?/.test(line)) {
+      const buf = [];
+      while (i < lines.length && /^\s*&gt;\s?/.test(lines[i])) { buf.push(lines[i].replace(/^\s*&gt;\s?/, '')); i++; }
+      out.push('<blockquote>' + buf.map(mdInline).join('<br>') + '</blockquote>');
+      continue;
+    }
+    const lm = line.match(listRe);
+    if (lm) {
+      const ordered = /\d/.test(lm[1]);
+      const items = [];
+      while (i < lines.length && new RegExp(listRe.source).test(lines[i])) {
+        items.push(mdInline(lines[i].replace(listRe, '')));
+        i++;
+      }
+      out.push((ordered ? '<ol>' : '<ul>') + items.map(t => '<li>' + t + '</li>').join('') + (ordered ? '</ol>' : '</ul>'));
+      continue;
+    }
+    const buf = [];
+    while (i < lines.length && lines[i].trim() && !listRe.test(lines[i]) &&
+           !/^\s*(#{1,4}\s|```|&gt;)/.test(lines[i]) && !/^\s*\|/.test(lines[i])) { buf.push(mdInline(lines[i])); i++; }
+    out.push('<p>' + buf.join('<br>') + '</p>');
+  }
+  return out.join('');
+}
+
+function timeLabel() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+function createTurn(role) {
+  const wrap = document.createElement('div');
+  wrap.className = 'turn ' + role;
+  const who = role === 'user' ? '你' : '助手';
+  wrap.innerHTML =
+    '<div class="turn-meta"><span class="who">' + who + '</span><span>·</span><span>' + timeLabel() + '</span>' +
+    (role === 'assistant' ? '<span class="copy" data-copy="1">复制</span>' : '') +
+    '</div><div class="turn-body"></div>';
+  messagesInnerEl.appendChild(wrap);
+  hideEmpty();
   scrollBottom();
-  return div;
+  return wrap;
 }
 
-function appendTrace(div, steps) {
+function bodyOf(turn) { return turn.querySelector('.turn-body'); }
+
+function createUserMessage(text) {
+  const turn = createTurn('user');
+  const b = document.createElement('div');
+  b.className = 'bubble';
+  b.textContent = text;
+  bodyOf(turn).appendChild(b);
+  scrollBottom();
+  return turn;
+}
+
+function createAssistantMessage() {
+  const turn = createTurn('assistant');
+  bodyOf(turn).innerHTML = '<div class="md md-pending">思考中…</div>';
+  return turn;
+}
+
+function setAssistantText(turn, text) {
+  const body = bodyOf(turn);
+  let md = body.querySelector('.md');
+  if (!md) { md = document.createElement('div'); md.className = 'md'; body.appendChild(md); }
+  md.classList.remove('md-pending');
+  md.innerHTML = renderMd(text);
+  scrollBottom();
+}
+
+function appendTrace(turn, steps) {
   if (!steps || steps.length === 0) return;
   const trace = document.createElement('details');
   trace.className = 'trace';
-  let html = '<summary>查看思考过程（' + steps.length + ' 步）</summary>';
+  let html = '<summary>思考过程（' + steps.length + ' 步工具调用）</summary>';
   steps.forEach((s, i) => {
     if (s.tool) {
-      html += '<div class="step"><div class="tool">[' + (i + 1) + '] ' + s.tool + '</div>' +
+      html += '<div class="step"><div class="tool">[' + (i + 1) + '] ' + escapeHtml(s.tool) + '</div>' +
         '<div class="obs">' + escapeHtml(s.observation) + '</div></div>';
     }
   });
   trace.innerHTML = html;
-  div.appendChild(trace);
+  bodyOf(turn).insertBefore(trace, bodyOf(turn).firstChild);
   scrollBottom();
 }
+
+/* 复制回答 */
+messagesEl.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-copy]');
+  if (!btn) return;
+  const turn = btn.closest('.turn');
+  const src = turn && turn.querySelector('.md, .bubble');
+  const text = src ? src.innerText : '';
+  if (!text) return;
+  const done = () => { btn.textContent = '已复制'; setTimeout(() => { btn.textContent = '复制'; }, 1200); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => {});
+});
 
 function renderChart(chartData, parentEl) {
   if (!chartData || !chartData.points || chartData.points.length < 2) return;
@@ -1187,19 +1352,27 @@ async function sendMessage() {
   const text = chatInputEl.value.trim();
   if (!text) return;
   chatInputEl.value = '';
-  createMessage('user', text);
+  createUserMessage(text);
   sendBtn.disabled = true;
-  const assistant = createMessage('assistant', '思考中…');
-  const bubble = assistant.querySelector('.bubble');
+  const assistant = createAssistantMessage();
   const steps = [];
   const processLine = (line) => {
     if (!line.startsWith('data: ')) return;
     let data;
     try { data = JSON.parse(line.slice(6)); } catch (e) { return; }
-    if (data.type === 'step') { steps.push(data); bubble.textContent = '正在调用 ' + data.tool + '…'; }
-    else if (data.type === 'done') { bubble.textContent = data.reply || '（无回复）'; }
-    else if (data.type === 'error') { bubble.textContent = '出错了：' + data.content; }
-    else if (data.type === 'chart') { renderChart(data.chart, assistant); }
+    if (data.type === 'step') {
+      steps.push(data);
+      const md = bodyOf(assistant).querySelector('.md');
+      if (md && md.classList.contains('md-pending')) {
+        md.innerHTML = '<span class="md-pending">正在调用 ' + escapeHtml(data.tool || '工具') + '…</span>';
+      }
+    } else if (data.type === 'done') {
+      setAssistantText(assistant, data.reply || '（无回复）');
+    } else if (data.type === 'error') {
+      setAssistantText(assistant, '出错了：' + (data.content || '未知错误'));
+    } else if (data.type === 'chart') {
+      renderChart(data.chart, bodyOf(assistant));
+    }
     scrollBottom();
   };
   try {
@@ -1220,10 +1393,10 @@ async function sendMessage() {
     }
     buffer += decoder.decode();
     buffer.split('\n').forEach(processLine);
-    if (!bubble.textContent || bubble.textContent === '思考中…') bubble.textContent = '（无回复）';
+    if (bodyOf(assistant).querySelector('.md-pending')) setAssistantText(assistant, '（无回复）');
     appendTrace(assistant, steps);
   } catch (e) {
-    bubble.textContent = '请求失败：' + e.message;
+    setAssistantText(assistant, '请求失败：' + e.message);
   } finally {
     sendBtn.disabled = false;
     chatInputEl.focus();
@@ -1234,8 +1407,8 @@ async function sendMessage() {
 async function resetChat() {
   try {
     await fetch('/api/reset', { method: 'POST' });
-    messagesEl.innerHTML = '<div class="messages-inner"></div>';
-    createMessage('assistant', '会话已重置，开始新的对话吧！');
+    messagesInnerEl.innerHTML = '';
+    showEmpty();
   } catch (e) {
     alert('重置失败：' + e.message);
   }

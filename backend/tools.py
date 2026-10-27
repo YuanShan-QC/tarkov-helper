@@ -117,6 +117,23 @@ def tool_get_price_trend(args: dict) -> str:
     p10 = ordered[int(n * 0.1)]
     p90 = ordered[min(n - 1, int(n * 0.9))]
 
+    # 覆盖度闸门：只挡「点数 < 2」是不够的。
+    # 实测「柯尔特 M4 AR-15 下护木」7 天窗口里只有 4 个点、且全落在 24 小时内，
+    # 照样输出「最近 7 天趋势 / 中位数 25000 / 典型区间 2000~25000 / 基本持平」——
+    # P10~P90 变成 12 倍带宽，模型会把它当行情念给用户。
+    # 「P226 弹匣」更阴：14 个点（过了「点数 <10」这条线）却只覆盖 24 小时。
+    # 所以两条同时要求：点数够，且实际覆盖到窗口的 60%（7 天 = 100.8 小时）。
+    span_h = (points[-1]["ts"] - points[0]["ts"]) / 3600000
+    if n < 10 or span_h < days * 24 * 0.6:
+        last_trend_chart = {"item_id": found["id"], "name": found["name"],
+                            "days": days, "points": points}
+        return (f"{found['name']} 最近 {days} 天只有 {n} 个采样点、实际覆盖 {span_h:.0f} 小时，"
+                f"样本不足以判断趋势，只给当前水平：\n"
+                f"- 最近一次价格: {prices[-1]} 卢布\n"
+                f"- 这段时间中位数: {median} 卢布\n"
+                f"- 出现过的价格范围: {min(prices)} ~ {max(prices)} 卢布\n"
+                f"回答时不要给出「上涨/下跌 x%」这类结论，也不要把这段时间的波动说成行情走势。")
+
     # 首尾各取几个点的中位数比较，避免端点正好踩在毛刺上把涨跌幅算飞
     k = max(1, min(3, n // 2))
     head_ref = sorted(prices[:k])[k // 2]

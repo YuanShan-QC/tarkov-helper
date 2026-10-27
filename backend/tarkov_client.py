@@ -348,7 +348,10 @@ class TarkovClient:
             zh_short = self.zh.get(item.get("shortName", ""), "")
             norm = item.get("normalizedName", "").lower()
             # 三个维度模糊匹配：中文完整名、中文短名、英文规范名
-            if keyword in zh_full or keyword in zh_short or keyword in norm:
+            # 关键词上面已经 lower() 过，这里的中文名也必须 lower()：
+            # 中文译名里大量保留大写拉丁片段（LEDX皮肤透照仪 / M4A1 / GPU），
+            # 不 lower 会导致「用完整中文名查」永远 0 命中（5480 个物品里 4605 个受影响）
+            if keyword in zh_full.lower() or keyword in zh_short.lower() or keyword in norm:
                 results.append({
                     "id": iid,
                     "name": zh_full or zh_short or item.get("normalizedName", ""),

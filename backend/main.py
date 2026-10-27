@@ -15,6 +15,7 @@ import os
 import sys
 import threading
 import time
+from collections import OrderedDict
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -42,9 +43,29 @@ import tools  # 用 tools.last_trend_chart 读取（模块属性访问，避免�
 # 关闭 httpx 的噪音日志
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
-# 全局 Agent 实例（单用户场景，多轮对话共享记忆）
-_agent = ReActAgent()
-MAX_STEPS = 8  # 最大工具调用步数，防止死循环
+# 会话隔离：每个 session 一个 Agent（各自独立的 scratchpad）
+# 以前是模块级单例，两个标签页/两个用户同时提问会互相串题（实测 2/6 概率答非所问）。
+_sessions: "OrderedDict[str, ReActAgent]" = OrderedDict()
+_sessions_lock = threading.Lock()
+MAX_SESSIONS = 32  # 最多保留 32 个会话，超出丢弃最久未用的，防止内存无限涨
+
+MAX_STEPS = 8  # 单轮最多执行 8 次工具调用，防止死循环
+
+
+def _get_agent(session_id: str) -> ReActAgent:
+    """按 session_id 取（或新建）Agent 实例，LRU 淘汰。"""
+    session_id = (session_id or "default").strip() or "default"
+    with _sessions_lock:
+        agent = _sessions.get(session_id)
+        if agent is None:
+            agent = ReActAgent()
+            _sessions[session_id] = agent
+            while len(_sessions) > MAX_SESSIONS:
+                _sessions.popitem(last=False)
+        else:
+            _sessions.move_to_end(session_id)
+        return agent
+
 
 
 @asynccontextmanager
@@ -101,6 +122,11 @@ app = FastAPI(title="塔科夫市场查询助手", lifespan=lifespan)
 
 class ChatRequest(BaseModel):
     message: str
+    session_id: str = "default"   # 会话标识：不同标签页/不同用户互不干扰
+
+
+class ResetRequest(BaseModel):
+    session_id: str = "default"
 
 
 @app.get("/")
@@ -179,76 +205,80 @@ def chat(req: ChatRequest):
     if not message:
         return {"reply": "请输入你想问的问题", "steps": []}
 
-    # 上一轮已结束的话，恢复 thinking 状态（保留历史记忆，支持多轮对话）
-    if _agent.state == "done":
-        _agent.state = "thinking"
+    agent = _get_agent(req.session_id)
+    # 同一会话串行执行：防止双击发送/两个请求交错把 scratchpad 搅乱
+    with agent._turn_lock:
+        # 上一轮已结束的话，恢复 thinking 状态（保留历史记忆，支持多轮对话）
+        if agent.state == "done":
+            agent.state = "thinking"
 
-    steps = []      # 记录每一步（thought + observation），用于展示
-    reply = ""
-    try:
-        # 第一步带用户输入，后续步骤靠 scratchpad 记忆
-        result = _agent.step(message)
-        for _ in range(MAX_STEPS):
-            if result["type"] == "error":
-                reply = f"出错了：{result['content']}"
-                break
-            if result["type"] == "observation":
-                # 记录思考 + 工具观察
-                steps.append({
-                    "thought": result.get("thought", ""),
-                    "tool": result.get("tool", ""),
-                    "observation": result.get("content", ""),
-                })
-                result = _agent.step()  # 继续下一步（不带输入）
-                continue
-            if result["type"] == "done":
-                reply = result["reply"]
-                steps.append({"thought": result.get("thought", ""), "tool": "", "observation": ""})
-                break
-        else:
-            # 超过最大步数仍未结束，强制收尾
-            reply = "抱歉，这个问题涉及的信息有点多，我一时没查完，换个更具体的问题试试？"
-    except Exception as e:
-        # 兜底，绝不让用户看到白屏
-        reply = f"服务异常：{str(e)[:200]}"
+        steps = []      # 记录每一步（thought + observation），用于展示
+        reply = ""
+        try:
+            # 第一步带用户输入，后续步骤靠 scratchpad 记忆
+            result = agent.step(message)
+            for _ in range(MAX_STEPS):
+                if result["type"] == "error":
+                    reply = f"出错了：{result['content']}"
+                    break
+                if result["type"] == "observation":
+                    # 记录思考 + 工具观察
+                    steps.append({
+                        "thought": result.get("thought", ""),
+                        "tool": result.get("tool", ""),
+                        "observation": result.get("content", ""),
+                    })
+                    result = agent.step()  # 继续下一步（不带输入）
+                    continue
+                if result["type"] == "done":
+                    reply = result["reply"]
+                    steps.append({"thought": result.get("thought", ""), "tool": "", "observation": ""})
+                    break
+            else:
+                # 步数用尽：让模型用已经查到的结果作答，而不是把整轮丢掉
+                reply = agent.force_finalize()
+        except Exception as e:
+            # 兜底，绝不让用户看到白屏
+            reply = f"服务异常：{str(e)[:200]}"
 
     return {"reply": reply, "steps": steps}
 
 
-def _run_agent_stream(message: str):
+def _run_agent_stream(agent: ReActAgent, message: str):
     """流式执行 ReAct 循环，逐步 yield SSE 数据（供前端实时展示工具调用轨迹）"""
-    if _agent.state == "done":
-        _agent.state = "thinking"
-    try:
-        result = _agent.step(message)
-        for _ in range(MAX_STEPS):
-            if result["type"] == "error":
-                yield f'data: {json.dumps({"type": "error", "content": result["content"]}, ensure_ascii=False)}\n\n'
-                return
-            if result["type"] == "observation":
-                # 每走一步工具，就把这一步实时推给前端
-                payload = {
-                    "type": "step",
-                    "thought": result.get("thought", ""),
-                    "tool": result.get("tool", ""),
-                    "observation": result.get("content", ""),
-                }
-                yield f'data: {json.dumps(payload, ensure_ascii=False)}\n\n'
-                # 趋势查询成功后，附带推送折线图数据给前端渲染
-                if result.get("tool") == "get_price_trend" and tools.last_trend_chart:
-                    chart_payload = {"type": "chart", "chart": tools.last_trend_chart}
-                    yield f'data: {json.dumps(chart_payload, ensure_ascii=False)}\n\n'
-                result = _agent.step()
-                continue
-            if result["type"] == "done":
-                yield f'data: {json.dumps({"type": "done", "reply": result["reply"]}, ensure_ascii=False)}\n\n'
-                return
-        else:
-            # 超过最大步数仍未结束，强制收尾
-            reply = "抱歉，这个问题涉及的信息有点多，我一时没查完，换个更具体的问题试试？"
-            yield f'data: {json.dumps({"type": "done", "reply": reply}, ensure_ascii=False)}\n\n'
-    except Exception as e:
-        yield f'data: {json.dumps({"type": "error", "content": str(e)[:200]}, ensure_ascii=False)}\n\n'
+    # 整个会话上锁：生产者生成器在流式返回期间独占该 Agent
+    with agent._turn_lock:
+        if agent.state == "done":
+            agent.state = "thinking"
+        try:
+            result = agent.step(message)
+            for _ in range(MAX_STEPS):
+                if result["type"] == "error":
+                    yield f'data: {json.dumps({"type": "error", "content": result["content"]}, ensure_ascii=False)}\n\n'
+                    return
+                if result["type"] == "observation":
+                    # 每走一步工具，就把这一步实时推给前端
+                    payload = {
+                        "type": "step",
+                        "thought": result.get("thought", ""),
+                        "tool": result.get("tool", ""),
+                        "observation": result.get("content", ""),
+                    }
+                    yield f'data: {json.dumps(payload, ensure_ascii=False)}\n\n'
+                    # 趋势查询成功后，附带推送折线图数据给前端渲染
+                    if result.get("tool") == "get_price_trend" and tools.last_trend_chart:
+                        chart_payload = {"type": "chart", "chart": tools.last_trend_chart}
+                        yield f'data: {json.dumps(chart_payload, ensure_ascii=False)}\n\n'
+                    result = agent.step()
+                    continue
+                if result["type"] == "done":
+                    yield f'data: {json.dumps({"type": "done", "reply": result["reply"]}, ensure_ascii=False)}\n\n'
+                    return
+            else:
+                # 步数用尽：让模型用已经查到的结果作答
+                yield f'data: {json.dumps({"type": "done", "reply": agent.force_finalize()}, ensure_ascii=False)}\n\n'
+        except Exception as e:
+            yield f'data: {json.dumps({"type": "error", "content": str(e)[:200]}, ensure_ascii=False)}\n\n'
 
 
 @app.post("/api/chat/stream")
@@ -257,13 +287,15 @@ def chat_stream(req: ChatRequest):
     message = req.message.strip()
     if not message:
         return {"reply": "请输入你想问的问题", "steps": []}
-    return StreamingResponse(_run_agent_stream(message), media_type="text/event-stream")
+    agent = _get_agent(req.session_id)
+    return StreamingResponse(_run_agent_stream(agent, message), media_type="text/event-stream")
 
 
 @app.post("/api/reset")
-def reset():
+def reset(req: "ResetRequest" = None):
     """重置会话，清空多轮记忆"""
-    _agent.reset()
+    sid = (req.session_id if req else "") or "default"
+    _get_agent(sid).reset()
     return {"status": "ok", "message": "会话已重置"}
 
 

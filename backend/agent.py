@@ -8,7 +8,7 @@ ReAct 自主 Agent —— 塔科夫市场查询助手
 对比学生成绩系统的 Agent，这里去掉了写操作/确认机制（查询类工具只读），
 保留：多工具编排、多轮记忆、防死循环。
 """
-import json, re
+import json, re, threading
 from config import client, MODEL
 from tools import TOOLS
 
@@ -27,6 +27,23 @@ LLM_MAX_TOKENS = 1500   # 单轮输出上限：要能列完「收藏家」这类
 RETRY_INSTRUCTION = ("你刚才的输出里没有可执行的 ACT，也没有 DONE。"
                      "请严格按格式只输出下一步："
                      "要么 `ACT: 工具名({\"参数\": \"值\"})`，要么 `DONE: 给用户的最终回复`。")
+
+# 步数用尽时的收尾提示：宁可让模型用已有观察作答，也不要把整轮结果丢掉
+FINALIZE_INSTRUCTION = ("工具调用步数已用尽，不要再调用任何工具。"
+                        "请立刻基于上面已有的 OBSERVATION 输出 `DONE: <给玩家的最终回答>`。"
+                        "已经查到的写清楚；没查到的直接说明哪几项没查到，不要编造价格。")
+
+# 每个工具的必填参数：模型偶尔会吐 `search_item()` 这种空参数，
+# 直接执行只会得到「请提供关键词」这类无效观察，白白烧掉一步。
+# 这里在调用前拦下来，并把「正确格式」回给它，让模型下一步就能自纠。
+TOOL_REQUIRED = {
+    "search_item": "keyword",
+    "get_price": "item_name",
+    "get_price_trend": "item_name",
+    "get_item_info": "item_name",
+    "compare_sell": "item_name",
+    "rag_search": "query",
+}
 
 
 def _clip_observation(text: str) -> str:
@@ -81,6 +98,7 @@ DONE: <给用户的最终回复，自然语言>
 - 任务需求、藏身处配方、制造/以物换物、物品用途这类百科类问题，必须用 rag_search 检索知识库回答，不要凭空编造"""
 
 
+
 class ReActAgent:
     """塔科夫查询 Agent —— 维护对话状态，执行工具调用循环"""
 
@@ -88,15 +106,33 @@ class ReActAgent:
         self.scratchpad = []   # [{"role": "thought/act/obs/done", "content": "..."}]
         self.state = "thinking"  # thinking | done
         self._last_user_input = None  # 本轮用户输入，供解析失败重试时复用
+        self._last_act = None   # (工具名, 参数) 上一次动作，用于识别原地打转
+        # 一个会话同一时刻只处理一轮对话：否则双击发送 / 两个标签页会把
+        # 彼此的 scratchpad 搅在一起，答案张冠李戴。
+        self._turn_lock = threading.RLock()
 
     def _execute_tool(self, tool_name: str, args: dict) -> str:
-        """执行工具并返回观察结果"""
-        if tool_name in TOOLS:
-            try:
-                return TOOLS[tool_name](args)
-            except Exception as e:
-                return f"工具 {tool_name} 执行出错: {str(e)[:200]}"
-        return f"错误: 未知工具 '{tool_name}'，可用: {list(TOOLS.keys())}"
+        """执行工具并返回观察结果（先做参数校验与重复调用提醒）"""
+        if tool_name not in TOOLS:
+            return f"错误: 未知工具 '{tool_name}'，可用: {list(TOOLS.keys())}"
+
+        required = TOOL_REQUIRED.get(tool_name)
+        if required and not str(args.get(required, "")).strip():
+            return (f"参数错误：{tool_name} 必须传入 {required}，你传的是 "
+                    f"{json.dumps(args, ensure_ascii=False)}。"
+                    f"正确写法示例：ACT: {tool_name}({{\"{required}\": \"物品名\"}})")
+
+        signature = (tool_name, json.dumps(args, ensure_ascii=False, sort_keys=True))
+        repeat_note = ""
+        if signature == self._last_act:
+            repeat_note = ("⚠️ 这一步和上一步调用的工具与参数完全相同，结果不会变化。"
+                           "请换一个参数，或直接用已有信息 DONE 回答。\n")
+        self._last_act = signature
+
+        try:
+            return repeat_note + TOOLS[tool_name](args)
+        except Exception as e:
+            return repeat_note + f"工具 {tool_name} 执行出错: {str(e)[:200]}"
 
     def _build_history(self) -> str:
         """构建对话历史文本，限制长度避免超出上下文窗口"""
@@ -114,6 +150,10 @@ class ReActAgent:
                 line = f"ACT: {content}"
             elif role == "obs":
                 line = f"OBSERVATION: {_clip_observation(content)}"
+            elif role == "done":
+                # 自己上一轮说过的话必须进历史：否则用户追问「你刚才怎么说的」，
+                # 模型只能靠 OBSERVATION 反推，还会把反推结果当成「原话」，属于幻觉。
+                line = f"DONE: {content[:400]}"
             else:
                 continue
             if total + len(line) > MAX_HISTORY_CHARS:
@@ -169,6 +209,7 @@ class ReActAgent:
             model=MODEL,
             messages=messages,
             max_tokens=LLM_MAX_TOKENS,
+            temperature=0.3,   # 工具调用要稳：默认 1.0 时同一句话时而漏参数、时而绕远路
             extra_body={"thinking": {"type": "disabled"}},
         )
         return resp.choices[0].message.content.strip()
@@ -266,3 +307,27 @@ class ReActAgent:
         self.scratchpad = []
         self.state = "thinking"
         self._last_user_input = None
+        self._last_act = None
+
+    def force_finalize(self) -> str:
+        """步数用尽时，用已有观察逼模型给一个最终回答。
+
+        以前的做法是直接返回「换个更具体的问题试试」，等于把已经跑完的
+        7~8 次工具调用的结果全扔掉；用户问 8 个物品，最后拿到一句道歉。
+        这里改成再问一次模型，让它把已经查到的写清楚、没查到的说明白。
+        """
+        try:
+            content = self._ask_llm(user_input=self._last_user_input,
+                                    extra_instruction=FINALIZE_INSTRUCTION)
+        except Exception as e:
+            return f"服务异常：{str(e)[:150]}"
+
+        done_match = re.search(r'DONE:\s*(.+)', content, re.DOTALL)
+        reply = done_match.group(1).strip() if done_match else content.strip()
+        reply = re.sub(r'^\s*THOUGHT:.*?(?=\n|$)', '', reply, flags=re.DOTALL).strip()
+        if not reply:
+            return "抱歉，这个问题涉及的信息有点多，我一时没查完，换个更具体的问题试试？"
+
+        self.scratchpad.append({"role": "done", "content": reply})
+        self.state = "done"
+        return reply

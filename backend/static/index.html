@@ -1377,7 +1377,8 @@ async function sendMessage() {
   };
   try {
     const resp = await fetch('/api/chat/stream', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text })
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text, session_id: chatSessionId() })
     });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const reader = resp.body.getReader();
@@ -1404,9 +1405,23 @@ async function sendMessage() {
   }
 }
 
+// 每个标签页一个会话 id（sessionStorage 本身就是按标签页隔离的）：
+// 后端按 session_id 隔离 Agent，两个标签页同时提问不会互相串答案。
+function chatSessionId() {
+  let sid = sessionStorage.getItem('tarkov-chat-session');
+  if (!sid) {
+    sid = 'tab-' + Math.random().toString(36).slice(2, 10) + '-' + Date.now().toString(36);
+    sessionStorage.setItem('tarkov-chat-session', sid);
+  }
+  return sid;
+}
+
 async function resetChat() {
   try {
-    await fetch('/api/reset', { method: 'POST' });
+    await fetch('/api/reset', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: chatSessionId() })
+    });
     messagesInnerEl.innerHTML = '';
     showEmpty();
   } catch (e) {

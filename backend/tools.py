@@ -51,7 +51,7 @@ def _candidates_text(candidates: list) -> str:
 
 def tool_search_item(args: dict) -> str:
     """搜索物品"""
-    keyword = args.get("keyword", "").strip()
+    keyword = resolve_alias(args.get("keyword", "").strip())
     if not keyword:
         return "请提供要搜索的物品关键词"
     candidates = tarkov.search(keyword, limit=5)
@@ -106,12 +106,27 @@ def tool_get_price_trend(args: dict) -> str:
         return f"「{found['name']}」最近 {days} 天价格数据不足，暂无法判断趋势（等价格管道攒一段时间后就有了）"
 
     prices = [int(p["price"]) for p in points]  # SQLite 读出的 price 是 float，转 int 供 :d 格式化
-    first, last = prices[0], prices[-1]
-    change = last - first
-    pct = (change / first * 100) if first else 0
-    trend = "上涨" if change > 0 else ("下跌" if change < 0 else "持平")
+    n = len(prices)
 
-    # 暴露图表数据（供前端画折线图）
+    # 对外口径用「中位数 / 分位数」，不用最大最小值：
+    # 价格序列里存在单笔异常挂单（实测 LEDX 7 天中位数 59.7 万，
+    # 但中间有一个 344 万的孤立采样点），直接把 max 交给模型，
+    # 它就会理直气壮地告诉用户「7 天最高冲到 344 万」。
+    ordered = sorted(prices)
+    median = ordered[n // 2] if n % 2 else (ordered[n // 2 - 1] + ordered[n // 2]) // 2
+    p10 = ordered[int(n * 0.1)]
+    p90 = ordered[min(n - 1, int(n * 0.9))]
+
+    # 首尾各取几个点的中位数比较，避免端点正好踩在毛刺上把涨跌幅算飞
+    k = max(1, min(3, n // 2))
+    head_ref = sorted(prices[:k])[k // 2]
+    tail_ref = sorted(prices[-k:])[k // 2]
+    change = tail_ref - head_ref
+    pct = (change / head_ref * 100) if head_ref else 0
+    trend = "上涨" if pct >= 1 else ("下跌" if pct <= -1 else "基本持平")
+    outliers = sum(1 for x in prices if x > median * 2.5 or x < median * 0.4)
+
+    # 暴露图表数据（供前端画折线图，图表仍用原始点，不做处理）
     last_trend_chart = {
         "item_id": found["id"],
         "name": found["name"],
@@ -120,11 +135,14 @@ def tool_get_price_trend(args: dict) -> str:
     }
 
     return (f"{found['name']} 最近 {days} 天价格趋势：\n"
-            f"- 数据点数: {len(points)} 个\n"
-            f"- 区间起点: {first} 卢布 → 最新: {last} 卢布\n"
+            f"- 数据点数: {n} 个\n"
+            f"- 中位数: {median} 卢布\n"
+            f"- 典型区间(P10~P90): {p10} ~ {p90} 卢布\n"
+            f"- 开头 → 结尾（各取 {k} 点中位数，已平滑）: {head_ref} → {tail_ref} 卢布\n"
             f"- 变化: {change:+d} 卢布（{pct:+.1f}%）\n"
             f"- 走势: {trend}\n"
-            f"- 区间最低/最高: {min(prices)} / {max(prices)}")
+            f"- 另有 {outliers} 个采样点明显偏离中位数（单笔异常挂单），已排除在统计之外；"
+            f"回答时请用中位数与典型区间描述价格水平，不要用极端值当行情。")
 
 
 def tool_get_item_info(args: dict) -> str:

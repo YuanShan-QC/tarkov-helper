@@ -335,14 +335,37 @@ class TarkovClient:
         short = self.zh.get(item.get("shortName", ""), "")
         return full or short or item.get("normalizedName", "未知物品")
 
+    @staticmethod
+    def _match_tier(kw: str, full: str, short: str, norm: str) -> tuple:
+        """匹配质量分档，用于给候选排序。
+
+        0 完全相同 > 1 前缀命中 > 2 中文全名子串 > 3 中文短名子串 > 4 英文名子串
+        第二维用长度差做 tiebreak（越接近关键词名次越前）。
+        """
+        if kw in (norm, full, short):
+            return (0, 0)
+        if full.startswith(kw) or short.startswith(kw) or norm.startswith(kw):
+            return (1, abs(len(full) - len(kw)))
+        if kw in full:
+            return (2, abs(len(full) - len(kw)))
+        if kw in short:
+            return (3, abs(len(short) - len(kw)))
+        return (4, abs(len(norm) - len(kw)))
+
     def search(self, keyword: str, limit: int = 5) -> list:
-        """按关键词搜索物品，返回候选列表（中文名/短名/英文规范名模糊匹配）"""
+        """按关键词搜索物品，返回候选列表（中文名/短名/英文规范名模糊匹配）
+
+        先召回全部命中，再按匹配质量排序后取前 limit 条。
+        不排序、命中够 5 条就返回的话，「短名」会被更长的名字挤掉：
+        搜 "GP" 时 GP-25 下挂榴弹发射器等含 gp 的物品按字典序先到先得，
+        短名真的是 "GP" 的那个物品排到第 72 位，Top-5 里根本没有它。
+        """
         self.load()
         keyword = keyword.strip().lower()
         if not keyword:
             return []
 
-        results = []
+        hits = []
         for iid, item in self.items.items():
             zh_full = self.zh.get(item.get("name", ""), "")
             zh_short = self.zh.get(item.get("shortName", ""), "")
@@ -351,15 +374,23 @@ class TarkovClient:
             # 关键词上面已经 lower() 过，这里的中文名也必须 lower()：
             # 中文译名里大量保留大写拉丁片段（LEDX皮肤透照仪 / M4A1 / GPU），
             # 不 lower 会导致「用完整中文名查」永远 0 命中（5480 个物品里 4605 个受影响）
-            if keyword in zh_full.lower() or keyword in zh_short.lower() or keyword in norm:
-                results.append({
-                    "id": iid,
-                    "name": zh_full or zh_short or item.get("normalizedName", ""),
-                    "shortName": zh_short,
-                    "normalizedName": item.get("normalizedName", ""),
-                })
-                if len(results) >= limit:
-                    break
+            full_l, short_l = zh_full.lower(), zh_short.lower()
+            if keyword in full_l or keyword in short_l or keyword in norm:
+                hits.append((self._match_tier(keyword, full_l, short_l, norm),
+                             iid, zh_full, zh_short, item))
+
+        if not hits:
+            return []
+        hits.sort(key=lambda x: (x[0], x[1]))
+
+        results = []
+        for _tier, iid, zh_full, zh_short, item in hits[:limit]:
+            results.append({
+                "id": iid,
+                "name": zh_full or zh_short or item.get("normalizedName", ""),
+                "shortName": zh_short,
+                "normalizedName": item.get("normalizedName", ""),
+            })
         return results
 
     def get_price(self, item_id: str) -> dict:

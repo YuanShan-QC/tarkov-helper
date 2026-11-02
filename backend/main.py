@@ -24,7 +24,12 @@ from pathlib import Path
 #   OSError: [WinError 10014] 系统检测到在一个调用中尝试使用指针参数时的无效指针地址
 # 导致监听套接字失效、页面完全打不开。uvicorn 只在 use_subprocess
 # （--reload/--workers）时才切 Selector，单进程启动会保留 Proactor，
-# 所以这里显式切换；无论用 run.py 还是 `python -m uvicorn main:app` 都安全。
+# 所以这里显式切换。
+#
+# 但这段只在「入口先执行、循环后创建」的顺序下有效：
+#   ✅ python run.py      ✅ python main.py
+#   ❌ python -m uvicorn main:app —— uvicorn 先建循环再 import 本模块，
+#      此处设置来不及生效，实测仍会 10014。要用 uvicorn 请走 backend/run.py。
 # 设 TARKOV_DISABLE_SELECTOR_LOOP=1 可临时关闭该兜底（仅用于诊断对比）。
 if sys.platform == "win32" and not os.getenv("TARKOV_DISABLE_SELECTOR_LOOP"):
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())

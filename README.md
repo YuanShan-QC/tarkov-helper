@@ -105,7 +105,7 @@ backend/
 cd backend
 pip install -r requirements.txt
 # 配置 backend/.env（DeepSeek API key）
-python run.py                      # 推荐：等价于 uvicorn main:app --host 127.0.0.1 --port 8100
+python run.py                      # 启动服务：127.0.0.1:8100（Windows 必须用这个，见下方说明）
 # 首次启动会自动：下载 embedding 模型（或复用 models/ 本地缓存）+ 后台构建向量库
 ```
 
@@ -115,8 +115,10 @@ python run.py                      # 推荐：等价于 uvicorn main:app --host 
 > 监听套接字随即失效，浏览器表现为「无法访问此网站 / 一直转圈」。
 > uvicorn 只在 `--reload` / `--workers`（`use_subprocess`）时才切到 SelectorEventLoop，
 > 单进程启动会保留 Proactor。`run.py` 在创建事件循环前显式设置
-> `WindowsSelectorEventLoopPolicy` 从根上规避该问题；
-> `main.py` 顶部也加了同样的兜底，直接跑 uvicorn 同样安全。
+> `WindowsSelectorEventLoopPolicy` 从根上规避该问题。
+> `main.py` 顶部也有同样的兜底，**但那只在"入口先跑、循环后建"的顺序下有效**
+> （`python main.py` ✅）；`python -m uvicorn main:app` 是 uvicorn 先建循环、
+> 再 import `main`，设置来不及生效，实测**仍会 10014** ❌。
 > （桌面一键启动 `start.bat` 已同步改为调用 `run.py`。）
 
 可选配置（backend/.env）：

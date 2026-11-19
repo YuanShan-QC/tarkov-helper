@@ -42,12 +42,14 @@
     height: 62px; padding: 0 28px;
     background: #fff; border-bottom: 1px solid var(--border-l);
   }
-  .brand { display: flex; flex-direction: column; justify-content: center; gap: 2px; line-height: 1; user-select: none; }
-  .brand .b1 { font-size: 9px; font-weight: 700; letter-spacing: .26em; color: #a0a4ab; }
-  .brand .b2 {
-    font-size: 22px; font-weight: 800; letter-spacing: .16em; color: #2b3038;
-    text-shadow: 0 1px 0 #d8dbe0;
+  /* 左上角：深色铭牌承载游戏 logo（logo 本身是白字透明底，必须衬深色） */
+  .brand {
+    display: flex; align-items: center; justify-content: center; gap: 2px; line-height: 1;
+    user-select: none; background: #15181d; border-radius: 6px; padding: 5px 9px;
+    align-self: center; cursor: pointer; transition: background .15s;
   }
+  .brand:hover { background: #232830; }
+  .brand .brand-logo { display: block; height: 46px; width: auto; }
   .main-nav { display: flex; gap: 4px; height: 100%; }
   .main-nav a {
     position: relative; display: flex; align-items: center; height: 100%;
@@ -319,9 +321,8 @@
       display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "brand right" "nav nav";
       height: auto; padding: 8px 12px 0; gap: 4px 8px; overflow: visible;
     }
-    .brand { grid-area: brand; min-width: 0; }
-    .brand .b2 { font-size: 16px; letter-spacing: .08em; }
-    .brand .b1 { font-size: 8px; letter-spacing: .16em; }
+    .brand { grid-area: brand; min-width: 0; justify-self: start; padding: 4px 7px; }
+    .brand .brand-logo { height: 34px; }
     .header-right { grid-area: right; margin-left: 0; gap: 8px; flex: 0 0 auto; }
     .mode-badge { padding: 4px 9px; font-size: 12px; }
     .main-nav { grid-area: nav; width: 100%; min-width: 0; height: 38px; gap: 0; overflow-x: auto; margin: 0 -12px; padding: 0 12px; }
@@ -381,9 +382,8 @@
 </svg>
 
 <header class="site-header">
-  <div class="brand" data-act="page:home" role="button" tabindex="0">
-    <span class="b1">ESCAPE FROM</span>
-    <span class="b2">TARKOV</span>
+  <div class="brand" data-act="page:home" role="button" tabindex="0" aria-label="Escape from Tarkov 首页">
+    <img class="brand-logo" src="/vendor/img/brand-logo.png" alt="ESCAPE FROM TARKOV" width="289" height="96" decoding="async">
   </div>
   <nav class="main-nav" id="main-nav">
     <a data-act="page:home" data-page="home">网站首页</a>

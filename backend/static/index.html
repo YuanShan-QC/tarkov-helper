@@ -14,16 +14,16 @@
     --blue-bg: rgba(78, 168, 255, .14);
     --blue-dark: #8ecbff;
     --text: #e8eaee;
-    --text-2: #aab2bd;
-    --text-3: #79818c;
-    --border: #39414b;
-    --border-l: #22282f;
-    --page: #12151a;
+    --text-2: #CCD3DD;
+    --text-3: #A2AAB8;
+    --border: #565F6D;
+    --border-l: #3D4550;
+    --page: #262C36;
     /* 深色面 */
-    --bg: #0f1115;
-    --bg-2: #16191e;
-    --bg-3: #1c2026;
-    --hair: rgba(255, 255, 255, .28);
+    --bg: #22272F;
+    --bg-2: #2A303A;
+    --bg-3: #333A45;
+    --hair: rgba(255, 255, 255, .30);
     color-scheme: dark;
     --green: #4ec97a;
     --red: #ff6b6b;
@@ -66,7 +66,7 @@
   .main-nav a:hover { color: var(--blue); }
   .main-nav a.active { color: var(--blue); border-bottom-color: var(--blue); }
   .header-right { margin-left: auto; display: flex; align-items: center; gap: 14px; font-size: 13px; color: var(--text-3); }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: #4b525c; display: inline-block; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #6C7684; display: inline-block; }
   .mode-badge {
     font-size: 12px; color: var(--blue); background: var(--blue-bg);
     border: 1px solid rgba(78, 168, 255, .45); border-radius: 3px; padding: 4px 12px;
@@ -113,7 +113,7 @@
   .tile-media { width: 88px; height: 88px; display: grid; place-items: center; flex: none; }
   .tile-media img { width: 100%; height: 100%; object-fit: contain; display: block; transition: transform .18s; }
   .tile-media svg { width: 58px; height: 58px; fill: var(--blue); transition: fill .15s; }
-  .tile:hover { background: #1b1f25; }
+  .tile:hover { background: #313842; }
   .tile:hover .tile-media img { transform: scale(1.06); }
   .tile:hover .tile-media svg { fill: var(--blue-hover); }
   .tile:hover span { color: var(--blue-dark); }
@@ -150,14 +150,14 @@
   .group { border-bottom: 1px solid var(--border-l); }
   .group-head {
     display: flex; align-items: center; gap: 8px; padding: 10px 16px;
-    background: #1b1f25; cursor: pointer; user-select: none;
+    background: #313842; cursor: pointer; user-select: none;
   }
-  .group-head:hover { background: #22272e; }
+  .group-head:hover { background: #3B4350; }
   .group-arrow { width: 12px; color: var(--blue); font-size: 11px; }
   .group-name { font-size: 13.5px; font-weight: 600; color: var(--text); }
   .group-count {
     margin-left: auto; font-size: 11.5px; color: var(--text-3);
-    background: #262c34; border-radius: 9px; padding: 1px 8px;
+    background: #3D4551; border-radius: 9px; padding: 1px 8px;
   }
   .group-body { max-height: 46vh; overflow-y: auto; }
   .group-toolbar {
@@ -171,7 +171,7 @@
     padding: 10px 16px; cursor: pointer; border-bottom: 1px solid var(--border-l);
     border-left: 2px solid transparent; transition: background .12s;
   }
-  .list-item:hover { background: #1e232a; }
+  .list-item:hover { background: #353C47; }
   .list-item.active { background: var(--blue-bg); border-left-color: var(--blue); }
   .list-item .name { font-size: 13.5px; color: var(--text); }
   .list-item.active .name { color: var(--blue-dark); font-weight: 600; }
@@ -192,7 +192,7 @@
   .card .kv b.flat { color: var(--text-2); }
   .req-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
   .req {
-    font-size: 12.5px; color: var(--text-2); background: #1e232a;
+    font-size: 12.5px; color: var(--text-2); background: #353C47;
     border: 1px solid var(--border-l); border-radius: 3px; padding: 3px 10px;
   }
   .obj { display: flex; align-items: flex-start; gap: 10px; padding: 7px 0; font-size: 13.5px; color: var(--text); border-bottom: 1px dashed rgba(255,255,255,.07); }
@@ -230,7 +230,7 @@
   .turn.user .turn-meta .copy { margin-left: 0; margin-right: auto; }
   .turn.user .turn-body { max-width: 88%; display: flex; justify-content: flex-end; }
   .bubble {
-    max-width: 100%; width: fit-content; background: #262c34; color: var(--text); border-radius: 14px;
+    max-width: 100%; width: fit-content; background: #3D4551; color: var(--text); border-radius: 14px;
     padding: 10px 14px; font-size: 14px; line-height: 1.75; white-space: pre-wrap; word-break: break-word;
   }
   .md { font-size: 14px; line-height: 1.8; color: var(--text); word-break: break-word; }
@@ -247,10 +247,10 @@
   .md li > p { margin: 0; }
   .md code {
     font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
-    font-size: 12.5px; background: #2a3038; border-radius: 4px; padding: 1px 5px; color: #ff9f8b;
+    font-size: 12.5px; background: #414A57; border-radius: 4px; padding: 1px 5px; color: #ff9f8b;
   }
   .md pre {
-    background: #12151a; border: 1px solid var(--border-l); border-radius: 8px;
+    background: #262C36; border: 1px solid var(--border-l); border-radius: 8px;
     padding: 12px 14px; overflow-x: auto; margin: 0 0 12px;
   }
   .md pre code { background: none; padding: 0; color: var(--text); font-size: 12.5px; line-height: 1.6; }
@@ -258,7 +258,7 @@
   .md hr { border: 0; border-top: 1px solid var(--border-l); margin: 16px 0; }
   .md table { border-collapse: collapse; width: 100%; margin: 0 0 12px; font-size: 13px; }
   .md th, .md td { border: 1px solid var(--border-l); padding: 7px 10px; text-align: left; }
-  .md th { background: #1e232a; font-weight: 600; color: var(--text-2); }
+  .md th { background: #353C47; font-weight: 600; color: var(--text-2); }
   .md a { color: var(--blue); text-decoration: none; }
   .md a:hover { text-decoration: underline; }
   .md strong { font-weight: 600; }
@@ -289,7 +289,7 @@
   /* 输入区 */
   .chat-input-bar { padding: 8px 24px 4px; background: var(--bg); }
   .chat-bar-inner {
-    display: flex; gap: 10px; max-width: 780px; margin: 0 auto; align-items: center; background: #191d23;
+    display: flex; gap: 10px; max-width: 780px; margin: 0 auto; align-items: center; background: #313842;
     border: 1px solid var(--hair); border-radius: 14px; padding: 8px 8px 8px 16px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, .35); transition: border-color .15s, box-shadow .15s;
   }
@@ -309,7 +309,7 @@
   .boot-card { text-align: center; }
   .boot-spinner {
     width: 34px; height: 34px; margin: 0 auto 18px;
-    border: 3px solid #2b3138; border-top-color: var(--blue); border-radius: 50%;
+    border: 3px solid #464F5D; border-top-color: var(--blue); border-radius: 50%;
     animation: spin .8s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -355,12 +355,12 @@
   }
   /* ================= 深色细节 ================= */
   ::selection { background: rgba(78, 168, 255, .35); color: #fff; }
-  .input::placeholder, textarea::placeholder { color: #606a76; }
-  * { scrollbar-width: thin; scrollbar-color: #39414b transparent; }
+  .input::placeholder, textarea::placeholder { color: #878F9C; }
+  * { scrollbar-width: thin; scrollbar-color: #565F6D transparent; }
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #333a43; border-radius: 6px; border: 2px solid transparent; background-clip: content-box; }
-  ::-webkit-scrollbar-thumb:hover { background: #4a525e; background-clip: content-box; }
+  ::-webkit-scrollbar-thumb { background: #4C5664; border-radius: 6px; border: 2px solid transparent; background-clip: content-box; }
+  ::-webkit-scrollbar-thumb:hover { background: #67717F; background-clip: content-box; }
 </style>
 </head>
 <body data-page="home">
@@ -949,14 +949,14 @@ function trendOption(points, name) {
     },
     xAxis: {
       type: 'category', data: s.labels, boundaryGap: false,
-      axisLabel: { color: '#8b939e', fontSize: 11 },
-      axisLine: { lineStyle: { color: '#2b3138' } },
+      axisLabel: { color: '#B0B8C5', fontSize: 11 },
+      axisLine: { lineStyle: { color: '#464F5D' } },
       axisTick: { show: false },
     },
     yAxis: {
       type: 'value',
-      axisLabel: { color: '#8b939e', fontSize: 11, formatter: v => (v >= 10000 ? (v / 10000) + '万' : v) },
-      splitLine: { lineStyle: { color: '#232930' } },
+      axisLabel: { color: '#B0B8C5', fontSize: 11, formatter: v => (v >= 10000 ? (v / 10000) + '万' : v) },
+      splitLine: { lineStyle: { color: '#3C4450' } },
     },
     series: [{
       type: 'line', name: name || '价格', data: s.values, smooth: true, showSymbol: false,
@@ -1370,7 +1370,7 @@ function renderChart(chartData, parentEl) {
     const opt = trendOption(chartData.points, chartData.name);
     opt.title = {
       text: chartData.name + ' 价格趋势（近 ' + chartData.days + ' 天）',
-      left: 'center', textStyle: { color: '#8b939e', fontSize: 13, fontWeight: 'normal' },
+      left: 'center', textStyle: { color: '#B0B8C5', fontSize: 13, fontWeight: 'normal' },
     };
     opt.grid.top = 40;
     chart.setOption(opt);

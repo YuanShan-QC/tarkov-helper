@@ -101,9 +101,13 @@
     padding: 24px 8px; background: transparent; border: none; cursor: pointer;
     color: var(--text); font-size: 14px; border-radius: 4px; transition: background .15s;
   }
-  .tile svg { width: 50px; height: 50px; fill: var(--blue); transition: fill .15s; }
+  /* 图示位：图片与 SVG 共用同一个 88px 方框，保证各格视觉大小一致 */
+  .tile-media { width: 88px; height: 88px; display: grid; place-items: center; flex: none; }
+  .tile-media img { width: 100%; height: 100%; object-fit: contain; display: block; transition: transform .18s; }
+  .tile-media svg { width: 58px; height: 58px; fill: var(--blue); transition: fill .15s; }
   .tile:hover { background: #f7f8fa; }
-  .tile:hover svg { fill: var(--blue-hover); }
+  .tile:hover .tile-media img { transform: scale(1.06); }
+  .tile:hover .tile-media svg { fill: var(--blue-hover); }
   .tile:hover span { color: var(--blue-dark); }
   .home-tip { margin-top: 26px; padding: 16px 18px; background: var(--page); border-radius: 4px; color: var(--text-2); font-size: 13px; line-height: 1.9; }
   .home-tip b { color: var(--text); }
@@ -402,10 +406,10 @@
     <div class="grid-wrap">
       <div class="grid-title">功能入口 <small>收录本地数据库中的全部现有功能与物品分类</small></div>
       <div class="tile-grid" id="home-modules">
-        <button class="tile" data-act="page:price"><svg><use href="#ic-price"/></svg><span>价格行情</span></button>
-        <button class="tile" data-act="page:task"><svg><use href="#ic-task"/></svg><span>任务查询</span></button>
-        <button class="tile" data-act="page:hideout"><svg><use href="#ic-hideout"/></svg><span>藏身处配方</span></button>
-        <button class="tile" data-act="page:chat"><svg><use href="#ic-chat"/></svg><span>智能助手</span></button>
+        <button class="tile" data-act="page:price"><span class="tile-media"><svg><use href="#ic-price"/></svg></span><span>价格行情</span></button>
+        <button class="tile" data-act="page:task"><span class="tile-media"><svg><use href="#ic-task"/></svg></span><span>任务查询</span></button>
+        <button class="tile" data-act="page:hideout"><span class="tile-media"><svg><use href="#ic-hideout"/></svg></span><span>藏身处配方</span></button>
+        <button class="tile" data-act="page:chat"><span class="tile-media"><svg><use href="#ic-chat"/></svg></span><span>智能助手</span></button>
       </div>
       <div class="grid-title" style="margin-top:30px">物品分类 <small>直接进入该分类的行情列表</small></div>
       <div class="tile-grid" id="home-cats">
@@ -712,6 +716,16 @@ const CAT_ICON = {
   '补给': 'ic-bottle', '物资': 'ic-sack', '改装件': 'ic-wrench', '杂物': 'ic-scrap',
 };
 
+// 分类实物图（统一 220x220、透明底，放在 static/vendor/cat/）；没配图的分类自动回退到 SVG 图标
+const CAT_IMG = {
+  '武器': '/vendor/cat/weapon.png', '弹药': '/vendor/cat/ammo.png',
+  '护甲': '/vendor/cat/armor.png', '穿戴': '/vendor/cat/outfit.png',
+  '医疗': '/vendor/cat/med.png', '钥匙': '/vendor/cat/key.png',
+  '投掷物': '/vendor/cat/throwable.png', '容器': '/vendor/cat/container.png',
+  '补给': '/vendor/cat/supply.png', '物资': '/vendor/cat/material.png',
+  '改装件': '/vendor/cat/mod.png', '杂物': '/vendor/cat/misc.png',
+};
+
 function catIcon(type) {
   return '#ic-' + (CAT_ICON[type] || 'ic-dots').slice(3);
 }
@@ -743,11 +757,14 @@ function renderHomeCats() {
   const box = document.getElementById('home-cats');
   if (!box) return;
   if (allItemGroups.length === 0) { box.innerHTML = '<div class="empty-tip" style="grid-column:1/-1">暂无物品数据</div>'; return; }
-  box.innerHTML = allItemGroups.map(g =>
-    '<button class="tile" data-act="type:' + escapeHtml(g.type) + '">' +
-    '<svg><use href="' + catIcon(g.type) + '"/></svg>' +
-    '<span>' + escapeHtml(g.type) + '（' + g.items.length + '）</span></button>'
-  ).join('');
+  box.innerHTML = allItemGroups.map(g => {
+    const img = CAT_IMG[g.type];
+    const media = img
+      ? '<span class="tile-media"><img src="' + img + '" alt="" width="220" height="220" decoding="async"></span>'
+      : '<span class="tile-media"><svg><use href="' + catIcon(g.type) + '"/></svg></span>';
+    return '<button class="tile" data-act="type:' + escapeHtml(g.type) + '">' + media +
+      '<span>' + escapeHtml(g.type) + '（' + g.items.length + '）</span></button>';
+  }).join('');
 }
 
 function showAllItems() {
